@@ -1,6 +1,5 @@
+import { UserModel } from "@/db/models/UserModel";
 import errorHandler from "@/helpers/errHandler";
-
-const { UserModel } = require("../../../db/models/UserModel");
 
 export async function POST(req: Request) {
   try {
