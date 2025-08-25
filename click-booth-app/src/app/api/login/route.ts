@@ -1,56 +1,63 @@
 import { UserModel } from "@/db/models/UserModel";
 import { comparePassword } from "@/helpers/bcrypt";
 import errorHandler from "@/helpers/errHandler";
+
 import { signToken } from "@/helpers/jwt";
 import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { email, password } = body;
+
     if (!email) {
-      throw {
-        message: "Email is required",
-        status: 400,
-      };
+      throw { message: "Email is required", status: 400 };
     }
 
     if (!password) {
-      throw {
-        message: "Password is required",
-        status: 400,
-      };
+      throw { message: "Password is required", status: 400 };
     }
 
     const user = await UserModel.findUserByEmail(email);
     if (!user) {
-      throw {
-        message: "User not found",
-        status: 404,
-      };
+      throw { message: "User not found", status: 404 };
     }
 
     const isPasswordValid = comparePassword(password, user.password);
     if (!isPasswordValid) {
-      throw {
-        message: "Invalid password",
-        status: 401,
-      };
+      throw { message: "Invalid password", status: 401 };
     }
 
+    // generate token
     const token = signToken({
-      id: user._id.toString(),
+      id: (user as any)._id?.toString() ?? (user as any).id ?? "",
       email: user.email,
     });
 
+    // set cookie
     const cookieStore = await cookies();
-    cookieStore.set("access_token", token);
-
-    return Response.json({
-      message: "Login successful",
-      status: 200,
-      access_token: token,
+    cookieStore.set({
+      name: "authorization",
+      value: `Bearer ${token}`,
+      httpOnly: true,
+      path: "/",
+      sameSite: "lax",
     });
+
+    // balikin user info langsung
+    return NextResponse.json(
+      {
+        message: "Login successful",
+        access_token: token,
+        user: {
+          id: (user as any)._id?.toString() ?? (user as any).id ?? "",
+          email: user.email,
+          phoneNumber: (user as any).phoneNumber ?? null,
+        },
+      },
+      { status: 200 }
+    );
   } catch (error) {
     return errorHandler(error);
   }
