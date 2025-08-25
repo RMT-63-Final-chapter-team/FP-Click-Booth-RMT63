@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { snapClient } from "@/helpers/midtrans";
+import { coreClient } from "@/helpers/midtrans";
 import { PaymentModel } from "@/db/models/PaymentModel";
 
 // Midtrans akan mengirim POST ke endpoint ini
@@ -16,9 +16,9 @@ export const POST = async (req: Request) => {
       );
     }
 
-    // Cek status transaksi ke Midtrans
-    const statusResponse = await snapClient.transaction.status(orderId);
-
+    // Cek status transaksi ke Midtrans (pakai CoreApi)
+    const statusResponse = await coreClient.transaction.status(orderId);
+    console.log("Midtrans status response:", statusResponse);
     // Mapping status Midtrans ke sistem kita
     let newStatus: "pending" | "success" | "failed" = "pending";
     switch (statusResponse.transaction_status) {
