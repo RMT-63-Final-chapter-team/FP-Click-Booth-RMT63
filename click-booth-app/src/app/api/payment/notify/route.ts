@@ -24,6 +24,7 @@ export const POST = async (req: Request) => {
     const statusResponse = await coreClient.transaction.status(orderId);
     console.log("Midtrans status response:", statusResponse);
     // Mapping status Midtrans ke sistem kita
+
     let newStatus: "pending" | "success" | "failed" = "pending";
     switch (statusResponse.transaction_status) {
       case "capture":
