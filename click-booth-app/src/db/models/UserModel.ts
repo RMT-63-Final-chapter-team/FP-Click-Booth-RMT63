@@ -2,6 +2,7 @@ import { database } from "../config/mongodb";
 import * as z from "zod";
 import { hashPassword } from "@/helpers/bcrypt";
 import { UserType } from "@/type";
+import { ObjectId } from "mongodb";
 
 const UserSchema = z.object({
   username: z
@@ -88,5 +89,12 @@ export class UserModel {
   static async findUserByPhoneNumber(phoneNumber: string) {
     const user = await this.collection().findOne({ phoneNumber });
     return user;
+  }
+
+  static async incrementToken(userId: string, amount: number) {
+    return (await this.collection()).updateOne(
+      { _id: new ObjectId(userId) },
+      { $inc: { tokens: amount } }
+    );
   }
 }
