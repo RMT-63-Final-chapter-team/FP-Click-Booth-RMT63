@@ -80,9 +80,6 @@ export default function PaymentPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           amount,
-          userId: "user-1",
-          username: "ClickBooth User",
-          email: "user@example.com",
           itemName: selectedPkg?.name || "Token Package",
           itemId: selectedPackage,
         }),

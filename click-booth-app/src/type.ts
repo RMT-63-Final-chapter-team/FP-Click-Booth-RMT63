@@ -1,6 +1,6 @@
 import { ObjectId as MongoObjectId } from "mongodb";
 
-export type ObjectId = string;
+export type ObjectId = MongoObjectId;
 
 export type NewPhotoInput = {
   userId?: ObjectId | null;
@@ -57,7 +57,8 @@ export interface MidtransNotification {
 
 export interface PaymentType {
   orderId: string;
-  userId: string;
+  // userId: string;
+  userId: ObjectId;
   amount: number;
   type: "token";
   status: PaymentStatus;
