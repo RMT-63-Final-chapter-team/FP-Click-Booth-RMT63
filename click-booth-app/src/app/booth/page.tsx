@@ -1,23 +1,107 @@
 "use client";
-import React, { useEffect, useRef, useState } from "react";
+import React, { JSX, useEffect, useRef, useState } from "react";
 import { QRCodeCanvas } from "qrcode.react";
+import { useRouter } from "next/navigation";
+
+const AVAILABLE_FILTERS: { id: string; label: string; css: string }[] = [
+  { id: "none", label: "None", css: "none" },
+  { id: "grayscale", label: "Grayscale", css: "grayscale(100%)" },
+  { id: "sepia", label: "Sepia", css: "sepia(80%)" },
+  { id: "invert", label: "Invert", css: "invert(100%)" },
+  { id: "bright", label: "Bright", css: "brightness(1.12)" },
+];
+
+const LAYOUTS = [
+  { id: "layoutA", label: "layout A (3 poses)", cols: 1, poses: 3 },
+  { id: "layoutB", label: "layout B (4 poses)", cols: 1, poses: 4 },
+  { id: "layoutC", label: "layout C (2 poses)", cols: 1, poses: 2 },
+  { id: "layoutD", label: "layout D (6 poses)", cols: 2, poses: 6 },
+  { id: "studio", label: "Studio (4 poses)", cols: 1, poses: 4 },
+];
+
+function LayoutPreview({ layoutId }: { layoutId: string }) {
+  const layout = LAYOUTS.find((l) => l.id === layoutId) ?? LAYOUTS[0];
+  const cols = layout.cols || 1;
+  const poses = layout.poses;
+  const boxes: JSX.Element[] = [];
+
+  for (let i = 0; i < poses; i++) {
+    boxes.push(
+      <div
+        key={i}
+        className="bg-coral-100 border-2 border-coral-300 rounded flex items-center justify-center text-coral-700 text-xs font-bold shadow-sm"
+        style={{
+          width: cols === 1 ? "100%" : "48%",
+          height: 16,
+          margin: "2px",
+        }}
+      >
+        {i + 1}
+      </div>
+    );
+  }
+  return (
+    <div className="bg-gradient-to-br from-white to-cream-50 rounded-lg border-2 border-coral-200 shadow-lg p-3 w-24">
+      <div
+        className="flex flex-wrap justify-center items-center mb-2"
+        style={{ minHeight: "50px" }}
+      >
+        {boxes}
+      </div>
+      <div className="text-xs text-coral-600 text-center font-bold bg-coral-50 rounded px-2 py-1">
+        {layout.poses} poses
+      </div>
+    </div>
+  );
+}
 
 export default function BoothPage() {
+  const router = useRouter();
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<number | null>(null);
 
-  const [photoTaken, setPhotoTaken] = useState(false);
   const [runningCountdown, setRunningCountdown] = useState(false);
   const [countdown, setCountdown] = useState(3);
 
   const [loggedIn, setLoggedIn] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  // result state
+  const [shotsCount, setShotsCount] = useState<number>(LAYOUTS[0].poses);
+  const [selectedLayout, setSelectedLayout] = useState<string>(LAYOUTS[0].id);
+  const [selectedFilter, setSelectedFilter] = useState<string>("none");
+
+  const [capturedDataUrls, setCapturedDataUrls] = useState<string[]>([]);
+  const [previewCaptured, setPreviewCaptured] = useState<string | null>(null);
+  const [finalComposed, setFinalComposed] = useState(false);
+
   const [uploadedPhotoUrl, setUploadedPhotoUrl] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const l = LAYOUTS.find((x) => x.id === selectedLayout);
+    setShotsCount(l?.poses ?? 1);
+  }, [selectedLayout]);
+
+  useEffect(() => {
+    if (!previewCaptured) return;
+    const c = canvasRef.current;
+    if (!c) return;
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = previewCaptured;
+    img.onload = () => {
+      c.width = img.naturalWidth || (videoRef.current?.videoWidth ?? 480);
+      c.height = img.naturalHeight || (videoRef.current?.videoHeight ?? 360);
+      const ctx = c.getContext("2d");
+      if (!ctx) return;
+      ctx.clearRect(0, 0, c.width, c.height);
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+    };
+    img.onerror = () => setPreviewCaptured(null);
+  }, [previewCaptured]);
 
   useEffect(() => {
     let mounted = true;
@@ -39,17 +123,28 @@ export default function BoothPage() {
       if (mounted) setLoggedIn(false);
     }
     checkSession();
-
     return () => {
       mounted = false;
       stopCamera();
       clearTimer();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function startCamera() {
     try {
-      if (streamRef.current) return;
+      if (streamRef.current) {
+        if (
+          videoRef.current &&
+          videoRef.current.srcObject !== streamRef.current
+        ) {
+          videoRef.current.srcObject = streamRef.current;
+        }
+        try {
+          await videoRef.current?.play();
+        } catch {}
+        return;
+      }
       const s = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "user" },
       });
@@ -64,15 +159,11 @@ export default function BoothPage() {
               canvas.width = vid.videoWidth || 480;
               canvas.height = vid.videoHeight || 360;
             }
-          } catch {
-            /* ignore */
-          }
+          } catch {}
         };
         try {
           await videoRef.current.play();
-        } catch {
-          /* ignore autoplay issues */
-        }
+        } catch {}
       }
     } catch (e) {
       console.error("camera error", e);
@@ -105,7 +196,7 @@ export default function BoothPage() {
       setCountdown((prev) => {
         if (prev <= 1) {
           clearTimer();
-          takePhoto();
+          takePhotoOnce();
           return 3;
         }
         return prev - 1;
@@ -113,37 +204,136 @@ export default function BoothPage() {
     }, 1000);
   }
 
-  function takePhoto() {
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    if (!video || !canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    if (!canvas.width || !canvas.height) {
-      canvas.width = video.videoWidth || 480;
-      canvas.height = video.videoHeight || 360;
+  async function ensureFreshFrame(): Promise<void> {
+    await new Promise<void>((res) => {
+      let done = false;
+      const safeTimeout = window.setTimeout(() => {
+        if (!done) {
+          done = true;
+          res();
+        }
+      }, 500);
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (!done) {
+            done = true;
+            clearTimeout(safeTimeout);
+            res();
+          }
+        });
+      });
+    });
+  }
+
+  async function captureOnceFromVideo(): Promise<string | null> {
+    const vid = videoRef.current;
+    if (!vid) return null;
+    const w = vid.videoWidth || 480;
+    const h = vid.videoHeight || 360;
+    const off = document.createElement("canvas");
+    off.width = w;
+    off.height = h;
+    const ctx = off.getContext("2d");
+    if (!ctx) return null;
+    const filterCss =
+      AVAILABLE_FILTERS.find((f) => f.id === selectedFilter)?.css ?? "none";
+    (ctx as CanvasRenderingContext2D).filter = filterCss;
+    ctx.drawImage(vid, 0, 0, w, h);
+    return off.toDataURL("image/jpeg", 0.92);
+  }
+
+  async function takePhotoOnce() {
+    if (!videoRef.current) return;
+    await ensureFreshFrame();
+
+    let dataUrl = await captureOnceFromVideo();
+    if (!dataUrl) return;
+
+    // retry a few times if identical to last saved (avoid duplicated identical captures)
+    let tries = 0;
+    while (tries < 4) {
+      const last = capturedDataUrls[capturedDataUrls.length - 1] ?? null;
+      if (!last || dataUrl !== last) break;
+      await new Promise((r) => setTimeout(r, 200));
+      await ensureFreshFrame();
+      dataUrl = await captureOnceFromVideo();
+      if (!dataUrl) return;
+      tries++;
     }
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    setPhotoTaken(true);
-    stopCamera();
+
+    // append safely and trigger compose using the NEXT array (avoid reading stale state)
+    setCapturedDataUrls((prev) => {
+      const last = prev[prev.length - 1] ?? null;
+      if (last === dataUrl) return prev;
+      const next = [...prev, dataUrl];
+
+      // schedule side-effect with the concrete `next` array so composeFinal sees correct images
+      setTimeout(() => {
+        if (next.length >= shotsCount) {
+          composeFinal(next).catch((e) => console.warn(e));
+        } else {
+          startCamera();
+        }
+      }, 250);
+
+      return next;
+    });
+
+    setPreviewCaptured(dataUrl);
+    setFinalComposed(false);
   }
 
-  function retakePhoto() {
-    setPhotoTaken(false);
-    setUploadedPhotoUrl(null);
-    setMessage(null);
-    setCountdown(3);
-    startCamera();
-  }
-
-  function downloadPhoto() {
+  async function composeFinal(imgsOverride?: string[]) {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const url = canvas.toDataURL("image/jpeg", 0.9);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "photo.jpg";
-    a.click();
+
+    const imgs = (imgsOverride ?? capturedDataUrls).slice(0, shotsCount);
+    if (imgs.length === 0) return;
+
+    const loadImgs = imgs.map((d) => {
+      const img = new Image();
+      img.src = d;
+      return new Promise<HTMLImageElement>((res) => {
+        img.onload = () => res(img);
+        img.onerror = () => res(img);
+      });
+    });
+    const loaded = await Promise.all(loadImgs);
+    const layout = LAYOUTS.find((l) => l.id === selectedLayout) ?? LAYOUTS[0];
+    const cols = layout.cols || 1;
+    const rows = Math.ceil(loaded.length / cols);
+    const w = loaded[0].naturalWidth;
+    const h = loaded[0].naturalHeight;
+    canvas.width = w * cols;
+    canvas.height = h * rows;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    for (let i = 0; i < loaded.length; i++) {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      ctx.drawImage(loaded[i], col * w, row * h, w, h);
+    }
+    setFinalComposed(true);
+    setPreviewCaptured(null);
+    stopCamera();
+
+    // Don't automatically navigate to compose page
+    // Let user see the result and choose actions (download, WhatsApp, QR)
+    setMessage(
+      "Photo composed successfully! You can now download, share, or view QR code."
+    );
+  }
+
+  function retakeCurrentShot() {
+    setCapturedDataUrls((prev) => {
+      const copy = [...prev];
+      copy.pop();
+      return copy;
+    });
+    setPreviewCaptured(null);
+    startCamera();
   }
 
   async function ensureSession(): Promise<boolean> {
@@ -163,81 +353,110 @@ export default function BoothPage() {
     }
   }
 
-  // uploadPhoto: sendToWhatsapp=false => save only; true => save and ask server to send WA
-  async function uploadPhoto(sendToWhatsapp = false) {
+  async function saveToCloudinary() {
     const canvas = canvasRef.current;
     if (!canvas) {
-      setMessage("No photo to upload");
+      setMessage("No photo to save");
       return null;
     }
-
     const ok = await ensureSession();
     if (!ok) {
-      setMessage("Harus login untuk upload & share.");
+      setMessage("Harus login untuk save foto.");
       setLoggedIn(false);
       return null;
     }
-
     setUploading(true);
     setMessage(null);
     try {
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+      const body: any = {
+        imageData: dataUrl,
+        sendToWhatsapp: false, // Only save, don't send WA
+        filter: selectedFilter,
+        shots: shotsCount,
+        layout: selectedLayout,
+      };
       const res = await fetch("/api/photos", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          imageData: dataUrl,
-          sendToWhatsapp: Boolean(sendToWhatsapp),
-        }),
+        body: JSON.stringify(body),
       });
-
       if (res.status === 401) {
-        setMessage("Harus login untuk upload & share.");
+        setMessage("Harus login untuk save foto.");
         setLoggedIn(false);
         setUploading(false);
         return null;
       }
-
       const data = await res.json();
       if (!res.ok) {
-        setMessage(data?.message ?? "Upload gagal");
+        setMessage(data?.message ?? "Save gagal");
         setUploading(false);
         return null;
       }
-
       setUploadedPhotoUrl(data.photo?.url ?? null);
-
-      if (sendToWhatsapp) {
-        setMessage(
-          data?.waResult?.error
-            ? `Upload sukses — WA gagal: ${data.waResult.error}`
-            : "Upload berhasil — WA dikirim ke nomor kamu"
-        );
-      }
-
+      setMessage("Foto berhasil disimpan ke cloud storage!");
       return data;
     } catch (e) {
       console.error(e);
-      setMessage("Upload error.");
+      setMessage("Save error.");
       return null;
     } finally {
       setUploading(false);
     }
   }
 
-  // handle send WA: will call uploadPhoto(true) which uploads + triggers WA send on server
-  async function handleSendWhatsApp() {
+  async function shareToWhatsApp() {
     const canvas = canvasRef.current;
-    if (!canvas && !uploadedPhotoUrl) {
-      setMessage("Tidak ada foto untuk dikirim.");
-      return;
+    if (!canvas) {
+      setMessage("No photo to share");
+      return null;
     }
-
-    setMessage(null);
+    const ok = await ensureSession();
+    if (!ok) {
+      setMessage("Harus login untuk share ke WhatsApp.");
+      setLoggedIn(false);
+      return null;
+    }
     setUploading(true);
+    setMessage(null);
     try {
-      await uploadPhoto(true);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+      const body: any = {
+        imageData: dataUrl,
+        sendToWhatsapp: true, // Request untuk share ke WhatsApp
+        filter: selectedFilter,
+        shots: shotsCount,
+        layout: selectedLayout,
+      };
+      const res = await fetch("/api/photos", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (res.status === 401) {
+        setMessage("Harus login untuk share ke WhatsApp.");
+        setLoggedIn(false);
+        setUploading(false);
+        return null;
+      }
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage(data?.message ?? "Share gagal");
+        setUploading(false);
+        return null;
+      }
+      // Set URL untuk QR code jika ada foto baru
+      if (data.isNewUpload && data.photo?.url) {
+        setUploadedPhotoUrl(data.photo.url);
+      }
+      setMessage(data.message || "Foto berhasil dikirim ke WhatsApp!");
+      return data;
+    } catch (e) {
+      console.error(e);
+      setMessage("WhatsApp share error.");
+      return null;
     } finally {
       setUploading(false);
     }
@@ -274,11 +493,25 @@ export default function BoothPage() {
                   {loggedIn ? "Connected" : "Guest Mode"}
                 </span>
               </div>
-              <div className="text-caption font-medium">
-                {!photoTaken ? "Camera Ready" : "Photo Captured"}
+
+              {/* Filter Selection */}
+              <div className="flex flex-col items-center gap-2">
+                <label className="text-sm font-bold text-charcoal-800 tracking-wide">
+                  FILTER
+                </label>
+                <select
+                  value={selectedFilter}
+                  onChange={(e) => setSelectedFilter(e.target.value)}
+                  className="px-4 py-2 border-2 border-coral-300 rounded-full text-sm font-medium bg-white focus:border-coral-500 focus:outline-none focus:ring-2 focus:ring-coral-200 transition-all shadow-md hover:shadow-lg min-w-36"
+                >
+                  {AVAILABLE_FILTERS.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.label}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
-          </div>
 
           {/* Video/Canvas Area */}
           <div className="relative bg-slate-900 aspect-video">
@@ -474,8 +707,8 @@ export default function BoothPage() {
                 </p>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

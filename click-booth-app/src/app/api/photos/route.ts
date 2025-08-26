@@ -50,6 +50,33 @@ async function uploadBufferToCloudinary(
   });
 }
 
+// Function to check if image already exists in database
+async function findExistingPhoto(userId: string): Promise<Photo | null> {
+  try {
+    const userIdObj = userId ? new ObjectId(userId) : null;
+    const existingPhoto = await PhotoModel.collection().findOne({
+      userId: userIdObj,
+      // Check for photos uploaded in the last 5 minutes
+      createdAt: { $gte: new Date(Date.now() - 5 * 60 * 1000) }
+    });
+    return existingPhoto as Photo | null;
+  } catch (error) {
+    console.warn("Error checking existing photo:", error);
+    return null;
+  }
+}
+
+// Create a simple hash from image data for duplicate detection
+function createImageHash(imageData: string): string {
+  // Simple hash based on first and last parts of base64 data
+  const cleanData = imageData.replace(/^data:image\/\w+;base64,/, "");
+  const start = cleanData.substring(0, 100);
+  const end = cleanData.substring(cleanData.length - 100);
+  return Buffer.from(start + end)
+    .toString("base64")
+    .substring(0, 20);
+}
+
 export async function POST(req: Request) {
   try {
     const userId = req.headers.get("x-user-id") ?? "";
@@ -93,34 +120,94 @@ export async function POST(req: Request) {
     const MAX_BYTES = 5 * 1024 * 1024;
     if (buffer.length > MAX_BYTES) throw { message: "Image too large", status: 413 };
 
-    // upload ke cloudinary
-    const uploadResult = await uploadBufferToCloudinary(buffer, {
-      folder: "click-booth",
-      resource_type: "image",
-      use_filename: true,
-      unique_filename: true
-    });
+    let url: string;
+    let publicId: string;
+    let created: Photo;
+    let isNewUpload = false;
 
-    if (!uploadResult?.secure_url)
-      throw { message: "Cloudinary did not return secure_url", status: 502 };
+    // Cek apakah ini request untuk share WhatsApp dan sudah ada foto recent
+    if (body.sendToWhatsapp) {
+      const existingPhoto = await findExistingPhoto(userId);
 
-    const url = uploadResult.secure_url;
-    const publicId = uploadResult.public_id;
+      if (existingPhoto) {
+        // Gunakan foto yang sudah ada untuk share WhatsApp
+        url = existingPhoto.url;
+        publicId = existingPhoto.publicId || "";
+        created = existingPhoto;
+        console.log("Using existing photo for WhatsApp share:", url);
+      } else {
+        // Upload baru jika belum ada foto recent
+        const uploadResult = await uploadBufferToCloudinary(buffer, {
+          folder: "click-booth",
+          resource_type: "image",
+          use_filename: true,
+          unique_filename: true
+        });
 
-    //simpan ke DB
-    const created: Photo = await PhotoModel.createPhoto({
-      userId: userId || null,
-      url,
-      publicId,
-      frame: body.frame,
-      stickers: body.stickers,
-      watermark: body.watermark,
-      filter: body.filter ?? undefined,
-      shots: typeof body.shots === "number" ? body.shots : undefined,
-      layout: body.layout ?? undefined,
-      enhancedUrl: url,
-      aiEnhanced: false
-    });
+        if (!uploadResult?.secure_url)
+          throw { message: "Cloudinary did not return secure_url", status: 502 };
+
+        url = uploadResult.secure_url;
+        publicId = uploadResult.public_id;
+        isNewUpload = true;
+
+        // Simpan ke DB juga karena baru upload
+        created = await PhotoModel.createPhoto({
+          userId: userId || null,
+          url,
+          publicId,
+          frame: body.frame,
+          stickers: body.stickers,
+          watermark: body.watermark,
+          filter: body.filter ?? undefined,
+          shots: typeof body.shots === "number" ? body.shots : undefined,
+          layout: body.layout ?? undefined,
+          enhancedUrl: url,
+          aiEnhanced: false
+        });
+      }
+    } else {
+      // Untuk save to cloud, cek juga apakah sudah ada foto recent
+      const existingPhoto = await findExistingPhoto(userId);
+
+      if (existingPhoto) {
+        // Gunakan foto yang sudah ada untuk save to cloud
+        url = existingPhoto.url;
+        publicId = existingPhoto.publicId || "";
+        created = existingPhoto;
+        console.log("Using existing photo for cloud save:", url);
+      } else {
+        // Upload baru jika belum ada foto recent
+        const uploadResult = await uploadBufferToCloudinary(buffer, {
+          folder: "click-booth",
+          resource_type: "image",
+          use_filename: true,
+          unique_filename: true
+        });
+
+        if (!uploadResult?.secure_url)
+          throw { message: "Cloudinary did not return secure_url", status: 502 };
+
+        url = uploadResult.secure_url;
+        publicId = uploadResult.public_id;
+        isNewUpload = true;
+
+        //simpan ke DB
+        created = await PhotoModel.createPhoto({
+          userId: userId || null,
+          url,
+          publicId,
+          frame: body.frame,
+          stickers: body.stickers,
+          watermark: body.watermark,
+          filter: body.filter ?? undefined,
+          shots: typeof body.shots === "number" ? body.shots : undefined,
+          layout: body.layout ?? undefined,
+          enhancedUrl: url,
+          aiEnhanced: false
+        });
+      }
+    }
 
     //share ke WhatsApp via fonnte
     let waResult: any = null;
@@ -147,7 +234,7 @@ export async function POST(req: Request) {
         if (phoneNumber) {
           waResult = await sendWhatsapp(
             phoneNumber,
-            `Halo! Ini hasil foto kamu dari ClickBooth \n${url}`
+            `Halo! Ini hasil foto kamu dari ClickBooth! 📸✨\n\n${url}\n\nTerima kasih sudah menggunakan ClickBooth!`
           );
         } else {
           waResult = { error: "No phone number found for user" };
@@ -159,13 +246,22 @@ export async function POST(req: Request) {
       }
     }
 
-    const waShareUrl = userId
-      ? `https://wa.me/?text=${encodeURIComponent(`Check out my photo: ${url}`)}`
-      : null;
+    const responseMessage = body.sendToWhatsapp
+      ? isNewUpload
+        ? "Foto berhasil diupload dan dikirim ke WhatsApp!"
+        : "Foto berhasil dikirim ke WhatsApp!"
+      : isNewUpload
+      ? "Foto berhasil diupload dan disimpan ke cloud storage!"
+      : "Foto sudah tersimpan di cloud storage!";
 
     return NextResponse.json(
-      { message: "Photo uploaded and saved", photo: created, waShareUrl, waResult },
-      { status: 201 }
+      {
+        message: responseMessage,
+        photo: created,
+        waResult: body.sendToWhatsapp ? waResult : undefined,
+        isNewUpload
+      },
+      { status: isNewUpload ? 201 : 200 }
     );
   } catch (error) {
     return errorHandler(error);
