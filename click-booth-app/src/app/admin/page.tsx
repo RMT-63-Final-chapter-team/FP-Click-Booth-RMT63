@@ -25,6 +25,9 @@ export default function AdminPage() {
   const [editUploadFile, setEditUploadFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [isAddModalClosing, setIsAddModalClosing] = useState(false);
+  const [isAddModalOpening, setIsAddModalOpening] = useState(false);
 
   const route = useRouter();
 
@@ -146,6 +149,9 @@ export default function AdminPage() {
         icon: "success",
         confirmButtonColor: "#D85C3A",
       });
+
+      // Close modal
+      closeAddModal();
 
       console.log("AI added successfully:", data);
     } catch (error) {
@@ -316,6 +322,31 @@ export default function AdminPage() {
     }, 300);
   };
 
+  const openAddModal = () => {
+    setIsAddModalOpening(true);
+    setShowAddModal(true);
+    // Trigger opening animation
+    setTimeout(() => {
+      setIsAddModalOpening(false);
+    }, 50);
+  };
+
+  const closeAddModal = () => {
+    setIsAddModalClosing(true);
+    setTimeout(() => {
+      setShowAddModal(false);
+      setAiName("");
+      setAiPrompt("");
+      setIconUrl("");
+      setUploadFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      setIsAddModalClosing(false);
+      setIsAddModalOpening(false);
+    }, 300);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-cream-50 to-cream-100">
       {/* Header */}
@@ -381,13 +412,34 @@ export default function AdminPage() {
 
         {/* AI Styles Table */}
         <div className="bg-white rounded-xl shadow-sm border border-cream-200 mb-8">
-          <div className="px-6 py-4 border-b border-cream-200">
-            <h2 className="text-lg font-semibold text-charcoal-900">
-              AI Photo Styles
-            </h2>
-            <p className="text-sm text-charcoal-600">
-              Manage your AI transformation styles
-            </p>
+          <div className="px-6 py-4 border-b border-cream-200 flex justify-between items-center">
+            <div>
+              <h2 className="text-lg font-semibold text-charcoal-900">
+                AI Photo Styles
+              </h2>
+              <p className="text-sm text-charcoal-600">
+                Manage your AI transformation styles
+              </p>
+            </div>
+            <button
+              onClick={openAddModal}
+              className="bg-white hover:bg-gray-100 text-black px-6 py-3 rounded-lg font-semibold transition-all transform hover:scale-105 hover:shadow-lg active:scale-95 flex items-center border border-black"
+            >
+              <svg
+                className="w-5 h-5 mr-2"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                />
+              </svg>
+              Add New Style
+            </button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -465,126 +517,56 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Add New Style Form */}
-        <div className="bg-white rounded-xl shadow-sm border border-cream-200">
-          <div className="px-6 py-4 border-b border-cream-200">
-            <h3 className="text-lg font-semibold text-charcoal-900">
-              Add New AI Style
-            </h3>
-            <p className="text-sm text-charcoal-600">
-              Create a new AI photo transformation style
-            </p>
-          </div>
-
-          <form
-            onSubmit={handleSubmit}
-            className={`p-6 space-y-6 relative ${
-              loading ? "pointer-events-none opacity-75" : ""
+        {/* Add New Style Modal */}
+        {showAddModal && (
+          <div
+            className={`fixed inset-0 bg-charcoal-900 bg-opacity-50 backdrop-blur-sm flex items-center justify-center p-4 z-50 transition-all duration-300 ease-out ${
+              isAddModalClosing ? "opacity-0" : "opacity-100"
             }`}
           >
-            {loading && (
-              <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center rounded-b-xl z-10">
-                <div className="text-center">
-                  <div className="w-12 h-12 border-4 border-warmRed-200 border-t-warmRed-600 rounded-full animate-spin mx-auto mb-4"></div>
-                  <p className="text-charcoal-700 font-medium">
-                    Uploading and saving...
-                  </p>
-                  <p className="text-charcoal-500 text-sm">
-                    Please wait while we process your request
-                  </p>
-                </div>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-sm font-semibold text-charcoal-700 mb-2">
-                    Style Name
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Enter AI style name (e.g., Vintage Film)"
-                    className="w-full px-4 py-3 border border-cream-300 rounded-lg focus:ring-2 focus:ring-warmRed-500 focus:border-warmRed-500 transition-all bg-white text-charcoal-900 placeholder-charcoal-400"
-                    value={aiName}
-                    onChange={(e) => setAiName(e.target.value)}
-                    disabled={loading}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-charcoal-700 mb-2">
-                    Upload Style Icon
-                  </label>
-                  <div className="relative">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      onChange={handleFileChange}
-                      accept="image/*"
-                      className="w-full px-4 py-3 border border-cream-300 rounded-lg focus:ring-2 focus:ring-warmRed-500 focus:border-warmRed-500 transition-all bg-white file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-peach-100 file:text-peach-700 hover:file:bg-peach-200"
-                      disabled={loading}
-                    />
-                    {uploadFile && (
-                      <div className="mt-2 flex items-center space-x-2">
-                        <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center">
-                          <svg
-                            className="w-4 h-4 text-green-600"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M5 13l4 4L19 7"
-                            />
-                          </svg>
-                        </div>
-                        <p className="text-sm text-green-700 font-medium">
-                          {uploadFile.name}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-charcoal-700 mb-2">
-                  AI Transformation Prompt
-                </label>
-                <textarea
-                  placeholder="Describe the AI transformation style in detail... (e.g., Transform this photo into a vintage film style with warm tones, soft grain, and retro color grading)"
-                  className="w-full px-4 py-3 border border-cream-300 rounded-lg focus:ring-2 focus:ring-warmRed-500 focus:border-warmRed-500 transition-all bg-white text-charcoal-900 placeholder-charcoal-400 resize-none"
-                  value={aiPrompt}
-                  onChange={(e) => setAiPrompt(e.target.value)}
-                  rows={6}
-                  disabled={loading}
-                ></textarea>
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-4 border-t border-cream-200 ">
-              <button
-                type="submit"
-                disabled={loading}
-                className={`px-8 py-3 rounded-lg font-semibold transition-all transform text-black border-1 border-black ${
-                  loading
-                    ? "bg-charcoal-300 text-charcoal-500 cursor-not-allowed"
-                    : "bg-warmRed-600 hover:bg-warmRed-700  hover:shadow-lg hover:scale-105 active:scale-95"
-                }`}
-              >
-                {loading ? (
+            <div
+              className={`bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-cream-200 transition-all duration-300 ease-out transform ${
+                isAddModalClosing
+                  ? "scale-95 translate-y-4 opacity-0"
+                  : isAddModalOpening
+                  ? "scale-95 translate-y-4 opacity-0"
+                  : "scale-100 translate-y-0 opacity-100"
+              }`}
+            >
+              {/* Modal Header */}
+              <div className="px-6 py-4 border-b border-cream-200 bg-cream-50 rounded-t-2xl">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center">
-                    <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin mr-2"></div>
-                    Uploading...
+                    <div className="w-12 h-12 rounded-xl bg-warmRed-100 border border-warmRed-200 flex items-center justify-center mr-4">
+                      <svg
+                        className="w-6 h-6 text-warmRed-600"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                        />
+                      </svg>
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-charcoal-900">
+                        Add New AI Style
+                      </h2>
+                      <p className="text-sm text-charcoal-600">
+                        Create a new AI photo transformation style
+                      </p>
+                    </div>
                   </div>
-                ) : (
-                  <div className="flex items-center ">
+                  <button
+                    onClick={closeAddModal}
+                    className="text-charcoal-400 hover:text-charcoal-600 p-2 rounded-lg hover:bg-cream-100 transition-colors"
+                  >
                     <svg
-                      className="w-5 h-5 mr-2"
+                      className="w-6 h-6"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -593,16 +575,151 @@ export default function AdminPage() {
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         strokeWidth={2}
-                        d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                        d="M6 18L18 6M6 6l12 12"
                       />
                     </svg>
-                    Add AI Style
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Content */}
+              <form
+                onSubmit={handleSubmit}
+                className={`p-6 space-y-6 relative ${
+                  loading ? "pointer-events-none opacity-75" : ""
+                }`}
+              >
+                {loading && (
+                  <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center rounded-b-2xl z-10">
+                    <div className="text-center">
+                      <div className="w-12 h-12 border-4 border-warmRed-200 border-t-warmRed-600 rounded-full animate-spin mx-auto mb-4"></div>
+                      <p className="text-charcoal-700 font-medium">
+                        Uploading and saving...
+                      </p>
+                      <p className="text-charcoal-500 text-sm">
+                        Please wait while we process your request
+                      </p>
+                    </div>
                   </div>
                 )}
-              </button>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="space-y-6">
+                    <div>
+                      <label className="block text-sm font-semibold text-charcoal-700 mb-2">
+                        Style Name
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Enter AI style name (e.g., Vintage Film)"
+                        className="w-full px-4 py-3 border border-cream-300 rounded-lg focus:ring-2 focus:ring-warmRed-500 focus:border-warmRed-500 transition-all bg-white text-charcoal-900 placeholder-charcoal-400"
+                        value={aiName}
+                        onChange={(e) => setAiName(e.target.value)}
+                        disabled={loading}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-charcoal-700 mb-2">
+                        Upload Style Icon
+                      </label>
+                      <div className="relative">
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          onChange={handleFileChange}
+                          accept="image/*"
+                          className="w-full px-4 py-3 border border-cream-300 rounded-lg focus:ring-2 focus:ring-warmRed-500 focus:border-warmRed-500 transition-all bg-white file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-peach-100 file:text-peach-700 hover:file:bg-peach-200"
+                          disabled={loading}
+                        />
+                        {uploadFile && (
+                          <div className="mt-2 flex items-center space-x-2">
+                            <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center">
+                              <svg
+                                className="w-4 h-4 text-green-600"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M5 13l4 4L19 7"
+                                />
+                              </svg>
+                            </div>
+                            <p className="text-sm text-green-700 font-medium">
+                              {uploadFile.name}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-charcoal-700 mb-2">
+                      AI Transformation Prompt
+                    </label>
+                    <textarea
+                      placeholder="Describe the AI transformation style in detail... (e.g., Transform this photo into a vintage film style with warm tones, soft grain, and retro color grading)"
+                      className="w-full px-4 py-3 border border-cream-300 rounded-lg focus:ring-2 focus:ring-warmRed-500 focus:border-warmRed-500 transition-all bg-white text-charcoal-900 placeholder-charcoal-400 resize-none"
+                      value={aiPrompt}
+                      onChange={(e) => setAiPrompt(e.target.value)}
+                      rows={6}
+                      disabled={loading}
+                    ></textarea>
+                  </div>
+                </div>
+
+                {/* Modal Footer */}
+                <div className="flex justify-end pt-4 border-t border-cream-200 space-x-3">
+                  <button
+                    type="button"
+                    onClick={closeAddModal}
+                    className="px-6 py-3 text-charcoal-700 bg-white hover:bg-cream-100 border border-cream-300 rounded-lg font-medium transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className={`px-8 py-3 rounded-lg font-semibold transition-all transform border border-black ${
+                      loading
+                        ? "bg-charcoal-300 text-charcoal-500 cursor-not-allowed"
+                        : "bg-warmRed-600 hover:bg-warmRed-700 text-white hover:shadow-lg hover:scale-105 active:scale-95"
+                    }`}
+                  >
+                    {loading ? (
+                      <div className="flex items-center">
+                        <div className="w-5 h-5 border-2 border-black border-2 rounded-full animate-spin mr-2"></div>
+                        Uploading...
+                      </div>
+                    ) : (
+                      <div className="flex items-center text-black">
+                        <svg
+                          className="w-5 h-5 mr-2"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                          />
+                        </svg>
+                        Add AI Style
+                      </div>
+                    )}
+                  </button>
+                </div>
+              </form>
             </div>
-          </form>
-        </div>
+          </div>
+        )}
 
         {/* Detail/Edit Modal */}
         {showModal && selectedStyle && (
