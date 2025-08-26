@@ -59,7 +59,7 @@ export class UserModel {
 
     const result = await this.collection().insertOne({
       ...userData,
-      tokens: 0,
+      tokens: 1,
       role: "user",
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -95,6 +95,22 @@ export class UserModel {
     return (await this.collection()).updateOne(
       { _id: new ObjectId(userId) },
       { $inc: { tokens: amount } }
+    );
+  }
+
+  static async decrementToken(userId: string) {
+    const user = await this.collection().findOne({ _id: new ObjectId(userId) });
+    if (!user) {
+      throw { message: "User not found", status: 404 };
+    }
+
+    if (user.tokens <= 0) {
+      throw { message: "Insufficient tokens", status: 400 };
+    }
+
+    return (await this.collection()).updateOne(
+      { _id: new ObjectId(userId) },
+      { $inc: { tokens: -1 } }
     );
   }
 }
