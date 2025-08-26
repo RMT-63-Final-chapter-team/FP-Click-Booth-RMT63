@@ -17,7 +17,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="antialiased font-sans bg-amber-50">
         <Navbar />
-        <main className="flex-1 pt-20">{children}</main>
+        <main className="pt-24 min-h-screen">{children}</main>
       </body>
     </html>
   );

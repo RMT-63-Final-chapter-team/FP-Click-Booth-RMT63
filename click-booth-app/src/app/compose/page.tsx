@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useRef, useEffect, use } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { QRCodeCanvas } from "qrcode.react";
 import { AiType, UserType } from "@/type";
 import Swal from "sweetalert2";
+import NextImage from "next/image";
 
 interface Frame {
   id: string;
@@ -22,10 +24,73 @@ interface Frame {
 
 type TabCategory = "frame" | "sticker" | "ai";
 
-const frames: Frame[] = [
+// Generate frames based on selected layout data
+function generateFramesForLayout(shotsCount: number): Frame[] {
+  const baseFrames: Frame[] = [
+    {
+      id: "none",
+      name: "No Frame",
+      src: "",
+      category: "frame",
+      type: "overlay",
+    },
+  ];
+
+  // Color variations for strips
+  const colorVariations = [
+    { id: "coral", name: "Coral", background: "#ffeaa7", accent: "#fd79a8" },
+    { id: "mint", name: "Mint", background: "#00b894", accent: "#00cec9" },
+    { id: "blue", name: "Blue", background: "#74b9ff", accent: "#0984e3" },
+    { id: "purple", name: "Purple", background: "#a29bfe", accent: "#6c5ce7" },
+    { id: "pink", name: "Pink", background: "#fd79a8", accent: "#e84393" },
+    { id: "orange", name: "Orange", background: "#fdcb6e", accent: "#e17055" },
+    { id: "green", name: "Green", background: "#55a3ff", accent: "#00b894" },
+    { id: "sunset", name: "Sunset", background: "#fab1a0", accent: "#e17055" },
+  ];
+
+  // Generate strip frames based on shots count
+  colorVariations.forEach((color) => {
+    baseFrames.push({
+      id: `strip-vertical-${shotsCount}-${color.id}`,
+      name: `${shotsCount} Photos Strip (${color.name})`,
+      src: "",
+      category: "frame",
+      type: "strip",
+      stripConfig: {
+        photoCount: shotsCount,
+        orientation: "vertical",
+        spacing: 8,
+        background: color.background,
+        branding: "ClickBooth",
+      },
+    });
+
+    // Also add horizontal version for 2+ photos
+    if (shotsCount >= 2) {
+      baseFrames.push({
+        id: `strip-horizontal-${shotsCount}-${color.id}`,
+        name: `${shotsCount} Photos Horizontal (${color.name})`,
+        src: "",
+        category: "frame",
+        type: "strip",
+        stripConfig: {
+          photoCount: shotsCount,
+          orientation: "horizontal",
+          spacing: 8,
+          background: color.background,
+          branding: "ClickBooth",
+        },
+      });
+    }
+  });
+
+  return baseFrames;
+}
+
+const defaultFrames: Frame[] = [
   { id: "none", name: "No Frame", src: "", category: "frame", type: "overlay" },
 
-  // 🎯 Photobooth Strip Layouts (dijadikan frames)
+  // Default frames for fallback
   {
     id: "strip-vertical-2",
     name: "2 Photos Strip",
@@ -83,8 +148,14 @@ export default function ComposePage() {
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  // Layout data from session
+  const [layoutData, setLayoutData] = useState<any>(null);
+  const [availableFrames, setAvailableFrames] =
+    useState<Frame[]>(defaultFrames);
+  const [capturedPhotos, setCapturedPhotos] = useState<string[]>([]);
+
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
-  const [selectedFrame, setSelectedFrame] = useState<Frame>(frames[0]);
+  const [selectedFrame, setSelectedFrame] = useState<Frame>(defaultFrames[0]);
   const [isLoading, setIsLoading] = useState(false);
   const [activeCategory, setActiveCategory] = useState<TabCategory>("frame");
 
@@ -95,6 +166,35 @@ export default function ComposePage() {
   const [aiErr, setAiErr] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentUser, setCurrentUser] = useState<UserType>();
+
+  // === Sharing States ===
+  const [uploading, setUploading] = useState(false);
+  const [uploadedPhotoUrl, setUploadedPhotoUrl] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [loggedIn, setLoggedIn] = useState(false);
+
+  // Load photos and layout data from sessionStorage when component mounts
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedPhotos = sessionStorage.getItem("capturedPhotos");
+      const savedLayout = sessionStorage.getItem("selectedLayout");
+
+      if (savedPhotos) {
+        const photos = JSON.parse(savedPhotos);
+        setCapturedPhotos(photos);
+      }
+
+      if (savedLayout) {
+        const layout = JSON.parse(savedLayout);
+        setLayoutData(layout);
+
+        // Generate frames based on layout shots count
+        const framesForLayout = generateFramesForLayout(layout.shots);
+        setAvailableFrames(framesForLayout);
+        setSelectedFrame(framesForLayout[0]);
+      }
+    }
+  }, []);
 
   // Fetch AI styles list (once)
   useEffect(() => {
@@ -122,6 +222,27 @@ export default function ComposePage() {
   };
   useEffect(() => {
     fetchCurrentUser();
+  }, []);
+
+  // Check login session for sharing features
+  useEffect(() => {
+    async function checkSession() {
+      try {
+        const res = await fetch("/api/me", {
+          method: "GET",
+          credentials: "include",
+        });
+        if (res.ok) {
+          const j = await res.json();
+          setLoggedIn(Boolean(j?.authenticated));
+        } else {
+          setLoggedIn(false);
+        }
+      } catch {
+        setLoggedIn(false);
+      }
+    }
+    checkSession();
   }, []);
 
   // Load selected photo from URL params or sessionStorage
@@ -363,6 +484,133 @@ export default function ComposePage() {
     }
   };
 
+  // === Sharing Functions ===
+  async function ensureSession(): Promise<boolean> {
+    if (loggedIn) return true;
+    try {
+      const r = await fetch("/api/me", {
+        method: "GET",
+        credentials: "include",
+      });
+      if (!r.ok) return false;
+      const j = await r.json();
+      const ok = Boolean(j?.authenticated);
+      setLoggedIn(ok);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+
+  async function saveToCloudinary() {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      setMessage("No photo to save");
+      return null;
+    }
+    const ok = await ensureSession();
+    if (!ok) {
+      setMessage("Harus login untuk save foto.");
+      setLoggedIn(false);
+      return null;
+    }
+    setUploading(true);
+    setMessage(null);
+    try {
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+      const body: any = {
+        imageData: dataUrl,
+        sendToWhatsapp: false, // Only save, don't send WA
+        filter: "none",
+        shots: 1,
+        layout: "composed",
+      };
+      const res = await fetch("/api/photos", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (res.status === 401) {
+        setMessage("Harus login untuk save foto.");
+        setLoggedIn(false);
+        setUploading(false);
+        return null;
+      }
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage(data?.message ?? "Save gagal");
+        setUploading(false);
+        return null;
+      }
+      setUploadedPhotoUrl(data.photo?.url ?? null);
+      setMessage("Foto berhasil disimpan ke cloud storage!");
+      return data;
+    } catch (e) {
+      console.error(e);
+      setMessage("Save error.");
+      return null;
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function shareToWhatsApp() {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      setMessage("No photo to share");
+      return null;
+    }
+    const ok = await ensureSession();
+    if (!ok) {
+      setMessage("Harus login untuk share ke WhatsApp.");
+      setLoggedIn(false);
+      return null;
+    }
+    setUploading(true);
+    setMessage(null);
+    try {
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+      const body: any = {
+        imageData: dataUrl,
+        sendToWhatsapp: true, // Request untuk share ke WhatsApp
+        filter: "none",
+        shots: 1,
+        layout: "composed",
+      };
+      const res = await fetch("/api/photos", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (res.status === 401) {
+        setMessage("Harus login untuk share ke WhatsApp.");
+        setLoggedIn(false);
+        setUploading(false);
+        return null;
+      }
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage(data?.message ?? "Share gagal");
+        setUploading(false);
+        return null;
+      }
+      // Set URL untuk QR code jika ada foto baru
+      if (data.isNewUpload && data.photo?.url) {
+        setUploadedPhotoUrl(data.photo.url);
+      }
+      setMessage(data.message || "Foto berhasil dikirim ke WhatsApp!");
+      return data;
+    } catch (e) {
+      console.error(e);
+      setMessage("WhatsApp share error.");
+      return null;
+    } finally {
+      setUploading(false);
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-coral-50 via-cream-50 to-sage-50 flex items-center justify-center">
@@ -431,14 +679,73 @@ export default function ComposePage() {
               </div>
 
               {selectedPhoto && (
-                <div className="flex flex-wrap gap-3 justify-center">
-                  <button
-                    onClick={handleDownload}
-                    className="bg-gradient-to-r from-sage-500 to-sage-600 hover:from-sage-600 hover:to-sage-700 text-white px-8 py-3 rounded-full font-bold text-lg transition-all shadow-lg hover:shadow-xl transform hover:scale-105 border-2 border-sage-400 flex items-center gap-2"
-                  >
-                    <span className="text-xl">📥</span>
-                    Download Composition
-                  </button>
+                <div className="space-y-6">
+                  {/* Main Action Buttons */}
+                  <div className="flex flex-wrap gap-3 justify-center">
+                    <button
+                      onClick={handleDownload}
+                      className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-8 py-3 rounded-full font-bold text-lg transition-all shadow-lg hover:shadow-xl transform hover:scale-105 border-2 border-blue-400 flex items-center gap-2"
+                    >
+                      <span className="text-xl">💾</span>
+                      Download
+                    </button>
+
+                    <button
+                      onClick={saveToCloudinary}
+                      disabled={uploading}
+                      className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-8 py-3 rounded-full font-bold text-lg transition-all shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 border-2 border-purple-400 flex items-center gap-2"
+                    >
+                      <span className="text-xl">☁️</span>
+                      {uploading ? "Saving..." : "Save to Cloud"}
+                    </button>
+
+                    <button
+                      onClick={shareToWhatsApp}
+                      disabled={uploading}
+                      className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-8 py-3 rounded-full font-bold text-lg transition-all shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 border-2 border-green-400 flex items-center gap-2"
+                    >
+                      <span className="text-xl">�</span>
+                      {uploading ? "Sending..." : "Share WhatsApp"}
+                    </button>
+                  </div>
+
+                  {/* Message Alert */}
+                  {message && (
+                    <div className="bg-gradient-to-r from-blue-50 to-blue-100 border-2 border-blue-300 rounded-2xl p-4 shadow-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="w-4 h-4 bg-blue-500 rounded-full animate-pulse shadow-lg"></div>
+                        <p className="text-sm font-bold text-blue-800">
+                          {message}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* QR Code Section */}
+                  {uploadedPhotoUrl && (
+                    <div className="bg-gradient-to-br from-white to-cream-50 rounded-2xl shadow-xl border-4 border-coral-200 text-center p-6">
+                      <h3 className="text-lg font-bold mb-4 text-charcoal-800 tracking-wide">
+                        📱 QUICK ACCESS
+                      </h3>
+                      <div className="inline-block bg-white p-4 rounded-xl shadow-lg border-2 border-coral-200 mb-4">
+                        <QRCodeCanvas
+                          value={uploadedPhotoUrl}
+                          size={150}
+                          level="M"
+                        />
+                      </div>
+                      <div>
+                        <a
+                          href={uploadedPhotoUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="bg-gradient-to-r from-coral-500 to-coral-600 hover:from-coral-600 hover:to-coral-700 text-white px-6 py-3 rounded-full font-bold text-sm transition-all shadow-lg hover:shadow-xl transform hover:scale-105 inline-block border-2 border-coral-400"
+                        >
+                          🔗 Open Photo
+                        </a>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -506,10 +813,12 @@ export default function ComposePage() {
                             }`}
                           >
                             <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0">
-                              <img
+                              <NextImage
                                 src={ai.icon}
                                 alt={ai.name}
                                 className="w-full h-full object-cover"
+                                width={24}
+                                height={24}
                               />
                             </div>
                             <span className="flex-1 text-left text-sm">
@@ -548,7 +857,7 @@ export default function ComposePage() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 gap-3">
-                    {frames
+                    {availableFrames
                       .filter(
                         (frame) =>
                           frame.category === activeCategory ||

@@ -56,8 +56,9 @@ export default function LoginPage() {
 
       setMessage("Login successful! Redirecting...");
       setMessageType("success");
-      setTimeout(() => router.push("/booth"), 600);
+      setTimeout(() => router.push("/"), 600);
     } catch (err) {
+      console.log("🚀 ~ handleLogin ~ err:", err);
       setMessage("An error occurred during login.");
       setMessageType("error");
     } finally {

@@ -1,6 +1,5 @@
 "use client";
 import React, { JSX, useEffect, useRef, useState } from "react";
-import { QRCodeCanvas } from "qrcode.react";
 import { useRouter } from "next/navigation";
 
 const AVAILABLE_FILTERS: { id: string; label: string; css: string }[] = [
@@ -66,9 +65,6 @@ export default function BoothPage() {
   const [runningCountdown, setRunningCountdown] = useState(false);
   const [countdown, setCountdown] = useState(3);
 
-  const [loggedIn, setLoggedIn] = useState(false);
-  const [uploading, setUploading] = useState(false);
-
   const [shotsCount, setShotsCount] = useState<number>(LAYOUTS[0].poses);
   const [selectedLayout, setSelectedLayout] = useState<string>(LAYOUTS[0].id);
   const [selectedFilter, setSelectedFilter] = useState<string>("none");
@@ -77,13 +73,11 @@ export default function BoothPage() {
   const [previewCaptured, setPreviewCaptured] = useState<string | null>(null);
   const [finalComposed, setFinalComposed] = useState(false);
 
-  const [uploadedPhotoUrl, setUploadedPhotoUrl] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    const l = LAYOUTS.find((x) => x.id === selectedLayout);
-    setShotsCount(l?.poses ?? 1);
-  }, [selectedLayout]);
+  // This useEffect is no longer needed since we get shots directly from sessionStorage
+  // useEffect(() => {
+  //   const l = LAYOUTS.find((x) => x.id === selectedLayout);
+  //   setShotsCount(l?.poses ?? 1);
+  // }, [selectedLayout]);
 
   useEffect(() => {
     if (!previewCaptured) return;
@@ -105,31 +99,56 @@ export default function BoothPage() {
 
   useEffect(() => {
     let mounted = true;
+
+    // Check if layout is selected from layout-selection page
+    const savedLayout = sessionStorage.getItem("selectedLayout");
+    if (!savedLayout) {
+      // No layout selected, redirect to layout selection
+      router.push("/layout-selection");
+      return;
+    }
+
+    try {
+      const layoutData = JSON.parse(savedLayout);
+      setSelectedLayout(layoutData.id || "single");
+
+      // Use shots directly from saved layout data
+      const correctShotsCount = layoutData.shots || 1;
+      setShotsCount(correctShotsCount);
+
+      console.log("Layout loaded:", {
+        layoutId: layoutData.id,
+        savedShots: layoutData.shots,
+        finalShotsCount: correctShotsCount,
+      });
+    } catch (e) {
+      console.warn("Failed to load saved layout:", e);
+      router.push("/layout-selection");
+      return;
+    }
+
     async function checkSession() {
+      // Optional: still check session for other purposes if needed
       try {
-        const res = await fetch("/api/me", {
+        await fetch("/api/me", {
           method: "GET",
           credentials: "include",
         });
         if (!mounted) return;
-        if (res.ok) {
-          const j = await res.json();
-          setLoggedIn(Boolean(j?.authenticated));
-          return;
-        }
+        // Just continue without setting state
       } catch {
         /* ignore */
       }
-      if (mounted) setLoggedIn(false);
     }
-    checkSession();
+    checkSession(); // Start camera after layout is confirmed
+    startCamera();
+
     return () => {
       mounted = false;
       stopCamera();
       clearTimer();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [router]);
 
   async function startCamera() {
     try {
@@ -167,7 +186,7 @@ export default function BoothPage() {
       }
     } catch (e) {
       console.error("camera error", e);
-      setMessage("Gagal akses kamera.");
+      console.log("Gagal akses kamera.");
     }
   }
 
@@ -319,11 +338,20 @@ export default function BoothPage() {
     setPreviewCaptured(null);
     stopCamera();
 
-    // Don't automatically navigate to compose page
-    // Let user see the result and choose actions (download, WhatsApp, QR)
-    setMessage(
-      "Photo composed successfully! You can now download, share, or view QR code."
-    );
+    // Save data to sessionStorage but don't auto-redirect
+    try {
+      const finalImage = canvas.toDataURL();
+      const payload = {
+        images: (imgsOverride ?? capturedDataUrls).slice(0, shotsCount), // Use original data URLs
+        layout: selectedLayout,
+        filter: selectedFilter,
+        shots: shotsCount,
+        finalImage: finalImage,
+      };
+      sessionStorage.setItem("composePayload", JSON.stringify(payload));
+    } catch (e) {
+      console.warn("failed to save compose payload", e);
+    }
   }
 
   function retakeCurrentShot() {
@@ -336,173 +364,129 @@ export default function BoothPage() {
     startCamera();
   }
 
-  async function ensureSession(): Promise<boolean> {
-    if (loggedIn) return true;
-    try {
-      const r = await fetch("/api/me", {
-        method: "GET",
-        credentials: "include",
-      });
-      if (!r.ok) return false;
-      const j = await r.json();
-      const ok = Boolean(j?.authenticated);
-      setLoggedIn(ok);
-      return ok;
-    } catch {
-      return false;
-    }
+  function retakeAllPhotos() {
+    setCapturedDataUrls([]);
+    setPreviewCaptured(null);
+    setFinalComposed(false);
+    startCamera();
   }
 
-  async function saveToCloudinary() {
-    const canvas = canvasRef.current;
-    if (!canvas) {
-      setMessage("No photo to save");
-      return null;
-    }
-    const ok = await ensureSession();
-    if (!ok) {
-      setMessage("Harus login untuk save foto.");
-      setLoggedIn(false);
-      return null;
-    }
-    setUploading(true);
-    setMessage(null);
-    try {
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
-      const body: any = {
-        imageData: dataUrl,
-        sendToWhatsapp: false, // Only save, don't send WA
-        filter: selectedFilter,
-        shots: shotsCount,
-        layout: selectedLayout,
-      };
-      const res = await fetch("/api/photos", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (res.status === 401) {
-        setMessage("Harus login untuk save foto.");
-        setLoggedIn(false);
-        setUploading(false);
-        return null;
-      }
-      const data = await res.json();
-      if (!res.ok) {
-        setMessage(data?.message ?? "Save gagal");
-        setUploading(false);
-        return null;
-      }
-      setUploadedPhotoUrl(data.photo?.url ?? null);
-      setMessage("Foto berhasil disimpan ke cloud storage!");
-      return data;
-    } catch (e) {
-      console.error(e);
-      setMessage("Save error.");
-      return null;
-    } finally {
-      setUploading(false);
-    }
-  }
-
-  async function shareToWhatsApp() {
-    const canvas = canvasRef.current;
-    if (!canvas) {
-      setMessage("No photo to share");
-      return null;
-    }
-    const ok = await ensureSession();
-    if (!ok) {
-      setMessage("Harus login untuk share ke WhatsApp.");
-      setLoggedIn(false);
-      return null;
-    }
-    setUploading(true);
-    setMessage(null);
-    try {
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
-      const body: any = {
-        imageData: dataUrl,
-        sendToWhatsapp: true, // Request untuk share ke WhatsApp
-        filter: selectedFilter,
-        shots: shotsCount,
-        layout: selectedLayout,
-      };
-      const res = await fetch("/api/photos", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (res.status === 401) {
-        setMessage("Harus login untuk share ke WhatsApp.");
-        setLoggedIn(false);
-        setUploading(false);
-        return null;
-      }
-      const data = await res.json();
-      if (!res.ok) {
-        setMessage(data?.message ?? "Share gagal");
-        setUploading(false);
-        return null;
-      }
-      // Set URL untuk QR code jika ada foto baru
-      if (data.isNewUpload && data.photo?.url) {
-        setUploadedPhotoUrl(data.photo.url);
-      }
-      setMessage(data.message || "Foto berhasil dikirim ke WhatsApp!");
-      return data;
-    } catch (e) {
-      console.error(e);
-      setMessage("WhatsApp share error.");
-      return null;
-    } finally {
-      setUploading(false);
-    }
+  function goToEditPhotos() {
+    router.push("/compose");
   }
 
   return (
-    <div className="min-h-screen bg-amber-50">
-      {/* Header */}
-      <div className="bg-white border-b border-amber-200 shadow-sm">
-        <div className="container py-4">
-          <h1 className="text-heading-2 text-center text-slate-800">
-            📸 ClickBooth Studio
-          </h1>
-          <p className="text-center text-body mt-1 text-slate-600">
-            Professional Photo Booth Experience
-          </p>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="container py-8">
-        {/* Camera/Photo Container */}
-        <div className="card mb-8 overflow-hidden">
-          {/* Status Bar */}
-          <div className="bg-red-500 px-6 py-3">
-            <div className="flex items-center justify-between text-white">
-              <div className="flex items-center space-x-2">
-                <div
-                  className={`w-3 h-3 rounded-full ${
-                    loggedIn ? "bg-green-400" : "bg-red-400"
-                  } animate-pulse`}
-                ></div>
-                <span className="text-caption font-medium">
-                  {loggedIn ? "Connected" : "Guest Mode"}
-                </span>
+    <div className="min-h-screen bg-gradient-to-br from-cream-50 to-cream-100">
+      {/* Main Camera Section */}
+      <div className="container mx-auto px-6 py-6">
+        <div className="max-w-4xl mx-auto">
+          {/* Camera Container */}
+          <div className="bg-white rounded-2xl shadow-2xl border-4 border-coral-200 overflow-hidden mb-6">
+            {/* Camera Status Bar */}
+            <div className="bg-gradient-to-r from-coral-500 to-coral-600 px-6 py-3">
+              <div className="flex items-center justify-between text-white">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse shadow-lg"></div>
+                    <span className="font-bold text-sm tracking-wide">
+                      CAMERA READY
+                    </span>
+                  </div>
+                  {capturedDataUrls.length > 0 && (
+                    <div className="bg-white/20 px-3 py-1 rounded-full">
+                      <span className="text-xs font-bold">
+                        {capturedDataUrls.length}/{shotsCount} CAPTURED
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <div className="text-sm font-bold">
+                  {!finalComposed ? "📸 PHOTO BOOTH" : "✨ COMPOSED"}
+                </div>
               </div>
+            </div>
 
-              {/* Filter Selection */}
-              <div className="flex flex-col items-center gap-2">
-                <label className="text-sm font-bold text-charcoal-800 tracking-wide">
-                  FILTER
-                </label>
+            {/* Camera Display */}
+            <div className="relative bg-gradient-to-br from-charcoal-800 to-charcoal-900 p-4">
+              <div
+                className="relative bg-black rounded-xl overflow-hidden shadow-inner border-4 border-charcoal-700"
+                style={{ minHeight: "280px", aspectRatio: "16/10" }}
+              >
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  muted
+                  playsInline
+                  style={{
+                    display:
+                      finalComposed || previewCaptured ? "none" : "block",
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    filter:
+                      AVAILABLE_FILTERS.find((f) => f.id === selectedFilter)
+                        ?.css ?? "none",
+                  }}
+                />
+                <canvas
+                  ref={canvasRef}
+                  aria-hidden={!finalComposed && !previewCaptured}
+                  style={{
+                    display:
+                      finalComposed || previewCaptured ? "block" : "none",
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "contain",
+                    backgroundColor: "#000",
+                  }}
+                />
+
+                {/* Countdown Overlay */}
+                {!previewCaptured && !finalComposed && runningCountdown && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                    <div className="bg-gradient-to-br from-coral-500 to-coral-600 w-20 h-20 rounded-full flex items-center justify-center shadow-2xl border-4 border-white animate-pulse">
+                      <span className="text-white text-2xl font-black">
+                        {countdown}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Camera Controls */}
+                {!previewCaptured && !finalComposed && !runningCountdown && (
+                  <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2">
+                    <div className="flex items-center gap-4">
+                      <button
+                        onClick={startCamera}
+                        className="bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white px-6 py-3 rounded-full font-bold text-sm transition-all shadow-lg hover:shadow-xl transform hover:scale-105 border-2 border-gray-500"
+                      >
+                        🎥 Start Camera
+                      </button>
+                      <button
+                        onClick={startCountdown}
+                        disabled={runningCountdown}
+                        className="bg-gradient-to-r from-coral-500 to-coral-600 hover:from-coral-600 hover:to-coral-700 text-white px-8 py-3 rounded-full font-bold text-sm transition-all shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 border-2 border-coral-400"
+                      >
+                        📸 CAPTURE
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Camera Filter Section */}
+          <div className="bg-gradient-to-r from-white to-cream-50 rounded-2xl shadow-xl border-4 border-coral-200 p-6 mb-6">
+            <div className="text-center">
+              <h3 className="text-lg font-bold text-charcoal-800 mb-4 tracking-wide">
+                🎨 CAMERA FILTER
+              </h3>
+              <div className="flex justify-center">
                 <select
                   value={selectedFilter}
                   onChange={(e) => setSelectedFilter(e.target.value)}
-                  className="px-4 py-2 border-2 border-coral-300 rounded-full text-sm font-medium bg-white focus:border-coral-500 focus:outline-none focus:ring-2 focus:ring-coral-200 transition-all shadow-md hover:shadow-lg min-w-36"
+                  className="px-6 py-3 border-2 border-coral-300 rounded-full text-base font-medium bg-white focus:border-coral-500 focus:outline-none focus:ring-2 focus:ring-coral-200 transition-all shadow-md hover:shadow-lg min-w-48"
                 >
                   {AVAILABLE_FILTERS.map((f) => (
                     <option key={f.id} value={f.id}>
@@ -512,199 +496,120 @@ export default function BoothPage() {
                 </select>
               </div>
             </div>
-
-          {/* Video/Canvas Area */}
-          <div className="relative bg-slate-900 aspect-video">
-            <video
-              ref={videoRef}
-              autoPlay
-              muted
-              playsInline
-              className={`w-full h-full object-cover ${
-                photoTaken ? "hidden" : "block"
-              }`}
-            />
-            <canvas
-              ref={canvasRef}
-              aria-hidden={!photoTaken}
-              className={`w-full h-full object-cover ${
-                photoTaken ? "block" : "hidden"
-              }`}
-            />
-
-            {/* Countdown Overlay */}
-            {!photoTaken && runningCountdown && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                <div className="bg-red-500 w-32 h-32 rounded-full flex items-center justify-center shadow-2xl animate-pulse">
-                  <span className="text-white text-6xl font-bold drop-shadow-lg">
-                    {countdown}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* Camera Controls Overlay */}
-            {!photoTaken && !runningCountdown && (
-              <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2">
-                <div className="flex items-center space-x-4">
-                  <button
-                    onClick={startCamera}
-                    className="bg-amber-100 text-slate-800 px-6 py-3 rounded-lg font-medium hover:bg-amber-200 transition-colors shadow-lg border border-amber-200"
-                  >
-                    🎥 Start Camera
-                  </button>
-                  <button
-                    onClick={startCountdown}
-                    disabled={runningCountdown}
-                    className="bg-red-500 text-white px-6 py-3 rounded-lg font-medium hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg"
-                  >
-                    📸 Capture Photo
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
-        </div>
 
-        {/* Action Buttons */}
-        {photoTaken && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            <button
-              onClick={downloadPhoto}
-              className="bg-amber-100 text-slate-800 px-6 py-3 rounded-lg font-medium hover:bg-amber-200 transition-colors shadow-lg border border-amber-200 flex items-center justify-center space-x-2 group"
-            >
-              <span className="text-xl group-hover:scale-110 transition-transform">
-                💾
-              </span>
-              <span>Download</span>
-            </button>
-
-            <button
-              onClick={() => uploadPhoto(false)}
-              disabled={uploading}
-              className={`${
-                uploading
-                  ? "bg-gray-400 cursor-not-allowed"
-                  : "bg-red-500 hover:bg-red-600"
-              } text-white px-6 py-3 rounded-lg font-medium transition-colors shadow-lg flex items-center justify-center space-x-2 group`}
-              title={
-                !loggedIn
-                  ? "Login required for upload"
-                  : "Save photo to gallery"
-              }
-            >
-              <span className="text-xl group-hover:scale-110 transition-transform">
-                ☁️
-              </span>
-              <span>{uploading ? "Uploading..." : "Save to Cloud"}</span>
-            </button>
-
-            <button
-              onClick={handleSendWhatsApp}
-              disabled={uploading}
-              className={`${
-                uploading
-                  ? "bg-gray-400 cursor-not-allowed"
-                  : "bg-red-500 hover:bg-red-600"
-              } text-white px-6 py-3 rounded-lg font-medium transition-colors shadow-lg flex items-center justify-center space-x-2 group`}
-              title="Send to WhatsApp number in profile"
-            >
-              <span className="text-xl group-hover:scale-110 transition-transform">
-                📱
-              </span>
-              <span>{uploading ? "Sending..." : "Send WhatsApp"}</span>
-            </button>
-
-            <button
-              onClick={retakePhoto}
-              className="bg-amber-100 text-slate-800 px-6 py-3 rounded-lg font-medium hover:bg-amber-200 transition-colors shadow-lg border border-amber-200 flex items-center justify-center space-x-2 group"
-            >
-              <span className="text-xl group-hover:scale-110 transition-transform">
-                🔄
-              </span>
-              <span>Retake</span>
-            </button>
-          </div>
-        )}
-
-        {/* Message Display */}
-        {message && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8">
-            <div className="flex items-center space-x-3">
-              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-              <p className="text-body font-medium text-blue-800">{message}</p>
-            </div>
-          </div>
-        )}
-
-        {/* QR Code Section */}
-        {uploadedPhotoUrl && (
-          <div className="bg-white rounded-xl shadow-lg border border-amber-200 p-8 text-center mb-8">
-            <h3 className="text-heading-3 mb-4 text-slate-800">
-              📱 Quick Access
-            </h3>
-            <p className="text-body mb-6 text-slate-600">
-              Scan QR code to view your photo on any device
-            </p>
-
-            <div className="inline-block bg-white p-6 rounded-2xl shadow-lg border border-amber-200 mb-6">
-              <QRCodeCanvas value={uploadedPhotoUrl} size={200} level="M" />
-            </div>
-
-            <div>
-              <a
-                href={uploadedPhotoUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="bg-red-500 text-white px-6 py-3 rounded-lg font-medium hover:bg-red-600 transition-colors shadow-lg inline-flex items-center space-x-2"
-              >
-                <span>🔗</span>
-                <span>Open Photo</span>
-              </a>
-            </div>
-          </div>
-        )}
-
-        {/* Getting Started Guide */}
-        {!photoTaken && !runningCountdown && (
-          <div className="bg-white rounded-xl shadow-lg border border-amber-200 p-8">
-            <h3 className="text-heading-3 mb-6 text-center text-slate-800">
-              🎯 How to Use
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="text-center">
-                <div className="bg-red-500 text-white w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 font-bold text-lg">
-                  1
-                </div>
-                <h4 className="text-heading-5 mb-2 text-slate-800">
-                  Start Camera
-                </h4>
-                <p className="text-body-small text-slate-600">
-                  Click &ldquo;Start Camera&rdquo; to begin your photo session
+          {/* Simplified Action Section */}
+          {(previewCaptured || finalComposed) && (
+            <div className="bg-gradient-to-r from-white to-cream-50 rounded-2xl shadow-xl border-4 border-coral-200 p-8 mb-6">
+              <div className="text-center mb-6">
+                <h2 className="text-2xl font-black text-charcoal-800 mb-2">
+                  {previewCaptured && !finalComposed
+                    ? "📷 Photo Captured!"
+                    : finalComposed
+                    ? "� All Photos Complete!"
+                    : "✨ Session Complete!"}
+                </h2>
+                <p className="text-lg text-charcoal-600">
+                  {previewCaptured && !finalComposed
+                    ? "Review your photo and continue or retake"
+                    : finalComposed
+                    ? "What would you like to do next?"
+                    : "Great work! Your photos are ready for editing and sharing"}
                 </p>
               </div>
-              <div className="text-center">
-                <div className="bg-amber-500 text-white w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 font-bold text-lg">
-                  2
-                </div>
-                <h4 className="text-heading-5 mb-2 text-slate-800">
-                  Capture Photo
-                </h4>
-                <p className="text-body-small text-slate-600">
-                  Click &ldquo;Capture Photo&rdquo; and get ready for the
-                  countdown
-                </p>
+
+              <div className="flex flex-wrap items-center justify-center gap-4">
+                {previewCaptured && !finalComposed && (
+                  <>
+                    <button
+                      onClick={retakeCurrentShot}
+                      className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-8 py-4 rounded-full font-bold text-lg transition-all shadow-xl hover:shadow-2xl transform hover:scale-110 border-2 border-orange-400"
+                    >
+                      🔄 Retake This Photo
+                    </button>
+                    {capturedDataUrls.length < shotsCount ? (
+                      <button
+                        onClick={() => {
+                          setPreviewCaptured(null);
+                          startCamera();
+                        }}
+                        className="bg-gradient-to-r from-coral-500 to-coral-600 hover:from-coral-600 hover:to-coral-700 text-white px-8 py-4 rounded-full font-bold text-lg transition-all shadow-xl hover:shadow-2xl transform hover:scale-110 border-2 border-coral-400"
+                      >
+                        ➡️ Continue to Next Photo ({capturedDataUrls.length}/
+                        {shotsCount})
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() =>
+                          composeFinal().catch((e) => console.warn(e))
+                        }
+                        className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-8 py-4 rounded-full font-bold text-lg transition-all shadow-xl hover:shadow-2xl transform hover:scale-110 border-2 border-green-400"
+                      >
+                        ✨ Complete Session
+                      </button>
+                    )}
+                  </>
+                )}
+                {finalComposed && (
+                  <>
+                    <button
+                      onClick={retakeAllPhotos}
+                      className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-8 py-4 rounded-full font-bold text-lg transition-all shadow-xl hover:shadow-2xl transform hover:scale-110 border-2 border-red-400"
+                    >
+                      🔄 Retake All Photos
+                    </button>
+                    <button
+                      onClick={goToEditPhotos}
+                      className="bg-gradient-to-r from-sage-500 to-sage-600 hover:from-sage-600 hover:to-sage-700 text-white px-8 py-4 rounded-full font-bold text-lg transition-all shadow-xl hover:shadow-2xl transform hover:scale-110 border-2 border-sage-400"
+                    >
+                      ✨ Edit Photos
+                    </button>
+                  </>
+                )}
               </div>
-              <div className="text-center">
-                <div className="bg-slate-600 text-white w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 font-bold text-lg">
-                  3
+            </div>
+          )}
+
+          {/* Instructions */}
+          {!previewCaptured && !finalComposed && (
+            <div className="bg-gradient-to-br from-white to-cream-50 rounded-2xl shadow-xl border-4 border-coral-200 p-6">
+              <h3 className="text-lg font-bold mb-6 text-center text-charcoal-800 tracking-wide">
+                🎯 QUICK GUIDE
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="text-center">
+                  <div className="bg-gradient-to-br from-coral-500 to-coral-600 text-white w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center font-black text-xl shadow-lg border-4 border-white">
+                    1
+                  </div>
+                  <h4 className="text-lg font-bold mb-2 text-charcoal-800">
+                    Setup
+                  </h4>
+                  <p className="text-sm text-charcoal-600">
+                    Choose layout & filter, then start camera
+                  </p>
                 </div>
-                <h4 className="text-heading-5 mb-2 text-slate-800">
-                  Save & Share
-                </h4>
-                <p className="text-body-small text-slate-600">
-                  Download, upload to cloud, or send via WhatsApp
-                </p>
+                <div className="text-center">
+                  <div className="bg-gradient-to-br from-sage-500 to-sage-600 text-white w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center font-black text-xl shadow-lg border-4 border-white">
+                    2
+                  </div>
+                  <h4 className="text-lg font-bold mb-2 text-charcoal-800">
+                    Capture
+                  </h4>
+                  <p className="text-sm text-charcoal-600">
+                    Take photos with 3-second countdown
+                  </p>
+                </div>
+                <div className="text-center">
+                  <div className="bg-gradient-to-br from-charcoal-500 to-charcoal-600 text-white w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center font-black text-xl shadow-lg border-4 border-white">
+                    3
+                  </div>
+                  <h4 className="text-lg font-bold mb-2 text-charcoal-800">
+                    Continue
+                  </h4>
+                  <p className="text-sm text-charcoal-600">
+                    Go to editor for advanced editing and sharing options
+                  </p>
+                </div>
               </div>
             </div>
           )}

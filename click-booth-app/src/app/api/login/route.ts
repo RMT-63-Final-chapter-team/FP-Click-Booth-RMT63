@@ -42,9 +42,11 @@ export async function POST(req: Request) {
     cookieStore.set({
       name: "authorization",
       value: `Bearer ${token}`,
-      httpOnly: true,
+      httpOnly: false, // Allow JavaScript access for client-side authentication
+      secure: process.env.NODE_ENV === "production", // HTTPS only in production
       path: "/",
       sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 7, // 7 days
     });
 
     // balikin user info langsung

@@ -54,8 +54,12 @@ export async function GET() {
       {
         authenticated: true,
         userId: String(user._id),
+        name: user.fullName,
+        username: user.username,
+        email: user.email,
         phoneNumber: user.phoneNumber ?? null,
         tokens: user.tokens,
+        createdAt: user.createdAt,
       },
       { status: 200 }
     );

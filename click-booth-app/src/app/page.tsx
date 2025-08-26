@@ -4,6 +4,9 @@ import Link from "next/link";
 import { motion } from "motion/react";
 import { Camera, Palette, Smartphone, Gem, Check, Star } from "lucide-react";
 import Footer from "@/components/Footer";
+import { BackgroundLines } from "@/components/ui/background-beams-with-collision";
+import { BoxesCore } from "@/components/ui/background-boxes";
+// import { BackgroundRippleEffect } from "@/components/ui/background-ripple-effect";
 
 export default function Home() {
   const features = [
@@ -35,7 +38,7 @@ export default function Home() {
   const plans = [
     {
       name: "Basic",
-      price: "50K",
+      price: "IDR 20.000",
       tokens: 10,
       features: [
         "10 Photo Sessions",
@@ -47,8 +50,8 @@ export default function Home() {
     },
     {
       name: "Pro",
-      price: "100K",
-      tokens: 25,
+      price: "IDR 55.000",
+      tokens: 30,
       features: [
         "25 Photo Sessions",
         "Premium Filters",
@@ -60,7 +63,7 @@ export default function Home() {
     },
     {
       name: "Premium",
-      price: "180K",
+      price: "IDR 90.000",
       tokens: 50,
       features: [
         "50 Photo Sessions",
@@ -75,40 +78,22 @@ export default function Home() {
   ];
 
   return (
-    <div className="min-h-screen bg-amber-50 text-slate-900">
-      {/* Top Nav (Minimal, elegan) */}
-      <header className="sticky top-0 z-40 backdrop-blur supports-[backdrop-filter]:bg-amber-50/70 bg-amber-50/80 border-b border-amber-200">
-        <div className="container mx-auto max-w-7xl px-4 h-14 flex items-center justify-between">
-          <Link href="/" className="font-semibold tracking-tight text-lg">
-            ClickBooth <span className="text-red-600">Studio</span>
-          </Link>
-          <nav className="hidden sm:flex items-center gap-6 text-sm font-medium text-slate-700">
-            <Link href="#features" className="hover:text-slate-900 transition">
-              Features
-            </Link>
-            <Link href="#pricing" className="hover:text-slate-900 transition">
-              Pricing
-            </Link>
-            <Link
-              href="/login"
-              className="px-3 py-1.5 rounded-lg border border-amber-300 hover:bg-amber-100 transition"
-            >
-              Sign In
-            </Link>
-          </nav>
-        </div>
-      </header>
-
+    <div className="bg-amber-50 text-slate-900">
       {/* Hero Section */}
-      <section className="relative overflow-hidden">
-        {/* Subtle gradient background */}
-        <div className="absolute inset-0 bg-gradient-to-b from-amber-50 via-amber-100 to-amber-200" />
-        <div className="container mx-auto max-w-7xl px-4 relative">
+      <BackgroundLines className="relative overflow-hidden min-h-screen bg-gradient-to-b from-amber-50 via-amber-100 to-amber-200">
+        {/* <BoxesCore className="absolute inset-0 z-0 opacity-40 pointer-events-none" /> */}
+        <div className="absolute inset-0 z-0">
+          <BoxesCore className="w-full h-full opacity-50" />
+        </div>
+        <div className="relative z-10 flex flex-col items-center justify-center min-h-screen px-4 text-center container mx-auto max-w-7xl">
+          {/* <div className="relative h-screen">
+            <BoxesCore className="absolute inset-0 z-10 opacity-50" />
+          </div> */}
           <motion.div
             initial={{ opacity: 0, y: 32 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, ease: "easeOut" }}
-            className="py-20 md:py-28 text-center"
+            className="pb-20 md:pb-28 text-center"
           >
             <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-balance">
               Professional Photo Booth with{" "}
@@ -121,7 +106,7 @@ export default function Home() {
 
             <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
               <Link
-                href="/booth"
+                href="/layout-selection"
                 className="inline-flex items-center gap-2 px-5 py-3 rounded-lg bg-red-500 text-white font-semibold shadow-sm hover:bg-red-600 transition"
               >
                 <Camera className="w-5 h-5" />
@@ -136,7 +121,7 @@ export default function Home() {
             </div>
           </motion.div>
         </div>
-      </section>
+      </BackgroundLines>
 
       {/* Features */}
       <section id="features" className="py-16 md:py-20">
@@ -213,7 +198,7 @@ export default function Home() {
                 <div className="p-7">
                   <h3 className="text-xl font-bold">{plan.name}</h3>
                   <p className="mt-2 text-4xl font-bold tracking-tight text-red-600">
-                    Rp {plan.price}
+                    {plan.price}
                   </p>
                   <p className="mt-1 text-slate-600">{plan.tokens} Tokens</p>
 
@@ -260,7 +245,7 @@ export default function Home() {
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
                 <Link
-                  href="/booth"
+                  href="/layout-selection"
                   className="px-6 py-3 bg-white text-red-600 rounded-lg font-semibold shadow hover:bg-amber-50 transition"
                 >
                   Try Now - Free

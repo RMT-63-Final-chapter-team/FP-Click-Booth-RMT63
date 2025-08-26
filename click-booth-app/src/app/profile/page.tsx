@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import {
@@ -13,22 +13,42 @@ import {
   Eye,
   Grid,
   List,
-  Settings,
+  //   Settings,
   LogOut,
   Edit,
   Save,
   X,
   AlertTriangle,
+  RefreshCw,
+  ExternalLink,
+  // Icon tambahan untuk photo booth
+  //   Heart,
+  Star,
+  //   Trophy,
+  //   Gift,
+  Zap,
+  Sparkles,
+  //   ImageIcon,
+  //   Filter,
+  //   Palette,
+  //   Wand2,
+  BadgeCheck,
+  //   Crown,
+  Flame,
+  Clock,
+  CheckCircle,
+  //   TrendingUp,
 } from "lucide-react";
 import {
   getUserFromCookiesClient,
   getAuthTokenFromCookies,
 } from "@/helpers/getUserFromCookiesClient";
-import Footer from "@/components/Footer";
+// import Footer from "@/components/Footer";
 
 interface UserProfile {
   id: string;
   name: string;
+  username: string;
   email: string;
   createdAt: string;
 }
@@ -49,62 +69,135 @@ export default function ProfilePage() {
   const [selected, setSelected] = useState<Photo | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState("");
+  const [hasMore, setHasMore] = useState(true);
+  const [photosLoading, setPhotosLoading] = useState(false);
+
+  const loadPhotos = useCallback(
+    async (next = false) => {
+      try {
+        const userData = getUserFromCookiesClient();
+        console.log("loadPhotos - userData:", userData);
+
+        if (!userData) {
+          console.log("loadPhotos - no user data, skipping");
+          return;
+        }
+
+        setPhotosLoading(true);
+        const skip = next ? photos.length : 0;
+        const limit = 24;
+
+        const token = getAuthTokenFromCookies();
+        console.log("loadPhotos - token:", token ? "exists" : "not found");
+
+        const response = await fetch(
+          `/api/photos?mine=true&limit=${limit}&skip=${skip}`,
+          {
+            method: "GET",
+            credentials: "include",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        console.log("loadPhotos - API response status:", response.status);
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log("loadPhotos - received data:", data);
+          const newPhotos = Array.isArray(data.photos) ? data.photos : [];
+          setPhotos((prev) => (next ? [...prev, ...newPhotos] : newPhotos));
+          setHasMore(newPhotos.length === limit);
+        } else {
+          const errorText = await response.text();
+          console.log("loadPhotos - API error:", errorText);
+          throw new Error("Failed to load photos");
+        }
+      } catch (error) {
+        console.error("loadPhotos error:", error);
+        setError("Failed to load photos");
+      } finally {
+        setPhotosLoading(false);
+      }
+    },
+    [photos.length]
+  );
+
+  const refreshPhotos = useCallback(async () => {
+    setPhotos([]);
+    setHasMore(true);
+    await loadPhotos(false);
+  }, [loadPhotos]);
+
+  const loadMorePhotos = useCallback(async () => {
+    if (hasMore && !photosLoading) {
+      await loadPhotos(true);
+    }
+  }, [hasMore, photosLoading, loadPhotos]);
 
   useEffect(() => {
-    loadProfile();
-    loadPhotos();
-  }, []);
+    const initializeData = async () => {
+      await loadProfile();
+      await loadPhotos(false);
+    };
+    initializeData();
+  }, [loadPhotos]);
 
   const loadProfile = async () => {
     try {
       setLoading(true);
+      setError(""); // Clear previous errors
+
       const userData = getUserFromCookiesClient();
+      console.log("userData from cookies:", userData);
+
       if (!userData) {
-        throw new Error("Please login first");
+        throw new Error(
+          "Please login first. If you recently logged in, please login again to refresh your session."
+        );
       }
 
       const token = getAuthTokenFromCookies();
+      console.log("token:", token ? "exists" : "not found");
+
+      if (!token) {
+        throw new Error("Authentication token not found");
+      }
+
       const response = await fetch("/api/me", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
 
+      console.log("API response status:", response.status);
+
       if (!response.ok) {
-        throw new Error("Failed to fetch profile");
+        const errorText = await response.text();
+        console.log("API error:", errorText);
+        throw new Error(`Failed to fetch profile: ${response.status}`);
       }
 
       const profileData = await response.json();
-      setUser(profileData);
-      setEditName(profileData.name);
+      console.log("Profile data received:", profileData);
+
+      // Map the API response to UserProfile interface
+      const userProfile: UserProfile = {
+        id: profileData.userId,
+        name: profileData.name,
+        username: profileData.username,
+        email: profileData.email,
+        createdAt: profileData.createdAt,
+      };
+
+      setUser(userProfile);
+      setEditName(userProfile.name);
     } catch (err) {
+      console.error("loadProfile error:", err);
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadPhotos = async () => {
-    try {
-      const userData = getUserFromCookiesClient();
-      if (!userData) return;
-
-      const token = getAuthTokenFromCookies();
-      const response = await fetch(
-        `/api/photos?limit=12&skip=0&userId=${userData.id}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        setPhotos(data.photos);
-      }
-    } catch (error) {
-      console.error("Failed to load photos:", error);
     }
   };
 
@@ -134,8 +227,11 @@ export default function ProfilePage() {
   };
 
   const handleLogout = () => {
+    // Clear the cookie properly
     document.cookie =
-      "authorization=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      "authorization=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; sameSite=lax;";
+
+    // Redirect to login
     window.location.href = "/login";
   };
 
@@ -172,13 +268,23 @@ export default function ProfilePage() {
       >
         <div className="bg-white/95 backdrop-blur-sm rounded-3xl p-12 shadow-2xl border border-amber-200/50 max-w-lg mx-auto">
           <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-            className="w-16 h-16 border-4 border-amber-200 border-t-red-500 rounded-full mx-auto mb-6"
-          />
+            animate={{
+              scale: [1, 1.2, 1],
+              rotate: [0, 180, 360],
+              opacity: [0.5, 1, 0.5],
+            }}
+            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+            className="w-16 h-16 mx-auto mb-6 flex items-center justify-center text-red-500"
+          >
+            <Zap className="w-16 h-16" />
+          </motion.div>
           <h3 className="text-2xl font-bold text-slate-800 mb-3 text-center">
             Loading Profile...
           </h3>
+          <div className="flex items-center justify-center space-x-2 text-slate-600">
+            <Sparkles className="w-4 h-4" />
+            <p className="text-sm">Preparing your awesome content...</p>
+          </div>
         </div>
       </motion.div>
     );
@@ -204,8 +310,9 @@ export default function ProfilePage() {
             animate={{ x: 0, opacity: 1 }}
             transition={{ duration: 0.6, delay: 0.2 }}
           >
-            <h1 className="text-4xl font-bold text-slate-800 mb-2">
-              👤 My Profile
+            <h1 className="flex items-center gap-2 text-4xl font-bold text-slate-800 mb-2">
+              <User className="w-8 h-8 text-slate-700" />
+              My Profile
             </h1>
             <p className="text-slate-600 text-lg">
               Manage your account and view your photo memories
@@ -223,12 +330,22 @@ export default function ProfilePage() {
             transition={{ duration: 0.5 }}
             className="bg-red-50 border border-red-200 rounded-2xl p-6 mb-8 shadow-lg"
           >
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-3 mb-4">
               <AlertTriangle className="w-6 h-6 text-red-500" />
               <span className="text-red-700 font-semibold text-lg">
                 {error}
               </span>
             </div>
+            {error.includes("login") && (
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => (window.location.href = "/login")}
+                className="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-2xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl"
+              >
+                Go to Login
+              </motion.button>
+            )}
           </motion.div>
         )}
 
@@ -302,6 +419,11 @@ export default function ProfilePage() {
                         <Edit className="w-4 h-4" />
                       </motion.button>
                     </div>
+                    {user?.username && (
+                      <p className="text-slate-500 text-center">
+                        @{user.username}
+                      </p>
+                    )}
                   </div>
                 )}
               </motion.div>
@@ -348,6 +470,44 @@ export default function ProfilePage() {
                     </p>
                   </div>
                 </div>
+
+                {/* New Achievement Card */}
+                {/* <div className="flex items-center space-x-4 p-4 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-2xl border border-yellow-200">
+                  <Trophy className="w-6 h-6 text-yellow-600" />
+                  <div>
+                    <p className="text-sm text-slate-500 font-medium">
+                      Achievement Level
+                    </p>
+                    <p className="text-slate-800 font-semibold flex items-center space-x-1">
+                      <span>
+                        {photos.length >= 50
+                          ? "Pro Photographer"
+                          : photos.length >= 20
+                          ? "Advanced User"
+                          : photos.length >= 5
+                          ? "Photo Enthusiast"
+                          : "Beginner"}
+                      </span>
+                      {photos.length >= 20 && (
+                        <Crown className="w-4 h-4 text-yellow-600" />
+                      )}
+                    </p>
+                  </div>
+                </div> */}
+
+                {/* User Status Card */}
+                <div className="flex items-center space-x-4 p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-2xl border border-blue-200">
+                  <BadgeCheck className="w-6 h-6 text-blue-600" />
+                  <div>
+                    <p className="text-sm text-slate-500 font-medium">
+                      Account Status
+                    </p>
+                    <p className="text-slate-800 font-semibold flex items-center space-x-1">
+                      <span>Verified User</span>
+                      <Sparkles className="w-4 h-4 text-blue-600" />
+                    </p>
+                  </div>
+                </div>
               </motion.div>
 
               {/* Action Buttons */}
@@ -357,14 +517,42 @@ export default function ProfilePage() {
                 transition={{ duration: 0.6, delay: 0.5 }}
                 className="mt-8 space-y-3"
               >
-                <motion.button
+                {/* <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   className="w-full bg-amber-500 hover:bg-amber-600 text-white p-4 rounded-2xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
                 >
                   <Settings className="w-5 h-5" />
                   <span>Account Settings</span>
-                </motion.button>
+                </motion.button> */}
+
+                {/* New Action Buttons */}
+                {/* <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white p-4 rounded-2xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
+                >
+                  <Wand2 className="w-5 h-5" />
+                  <span>AI Photo Enhance</span>
+                </motion.button> */}
+
+                {/* <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="w-full bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white p-4 rounded-2xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
+                >
+                  <Gift className="w-5 h-5" />
+                  <span>Redeem Rewards</span>
+                </motion.button> */}
+
+                {/* <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white p-4 rounded-2xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
+                >
+                  <TrendingUp className="w-5 h-5" />
+                  <span>View Analytics</span>
+                </motion.button> */}
 
                 <motion.button
                   whileHover={{ scale: 1.02 }}
@@ -394,8 +582,9 @@ export default function ProfilePage() {
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.6, delay: 0.4 }}
                 >
-                  <h3 className="text-2xl font-bold text-slate-800 mb-2">
-                    📸 Photo History
+                  <h3 className="flex items-center gap-2 text-2xl font-bold text-slate-800 mb-2">
+                    <Camera className="w-5 h-5 text-slate-700" />
+                    Photo History
                   </h3>
                   <p className="text-slate-600">
                     Your captured memories from ClickBooth sessions
@@ -491,6 +680,22 @@ export default function ProfilePage() {
                         onClick={() => setSelected(photo)}
                         className="aspect-square relative cursor-pointer overflow-hidden"
                       >
+                        {/* Special Badge for Recent Photos */}
+                        {index < 3 && (
+                          <div className="absolute top-3 left-3 z-10 bg-gradient-to-r from-orange-500 to-red-500 text-white px-2 py-1 rounded-full flex items-center space-x-1 text-xs font-semibold shadow-lg">
+                            <Flame className="w-3 h-3" />
+                            <span>Hot</span>
+                          </div>
+                        )}
+
+                        {/* Quality Badge for High Resolution */}
+                        {index % 5 === 0 && index > 0 && (
+                          <div className="absolute top-3 right-3 z-10 bg-gradient-to-r from-purple-500 to-pink-500 text-white px-2 py-1 rounded-full flex items-center space-x-1 text-xs font-semibold shadow-lg">
+                            <Star className="w-3 h-3" />
+                            <span>HD</span>
+                          </div>
+                        )}
+
                         <Image
                           src={photo.thumbUrl ?? photo.url}
                           alt="Photo"
@@ -512,9 +717,12 @@ export default function ProfilePage() {
                       </motion.div>
 
                       <div className="p-4">
-                        <p className="text-sm text-slate-600 mb-3 font-medium">
-                          {formatDate(photo.createdAt)}
-                        </p>
+                        <div className="flex items-center space-x-2 mb-3">
+                          <Clock className="w-4 h-4 text-slate-400" />
+                          <p className="text-sm text-slate-600 font-medium">
+                            {formatDate(photo.createdAt)}
+                          </p>
+                        </div>
 
                         <div className="flex items-center justify-between">
                           <motion.button
@@ -528,6 +736,25 @@ export default function ProfilePage() {
                           >
                             <Download className="w-4 h-4" />
                           </motion.button>
+
+                          {/* <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            className="bg-pink-100 hover:bg-pink-200 text-pink-700 p-2 rounded-xl transition-all duration-200"
+                            title="Add to Favorites"
+                          >
+                            <Heart className="w-4 h-4" />
+                          </motion.button> */}
+
+                          {/* <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            className="bg-purple-100 hover:bg-purple-200 text-purple-700 p-2 rounded-xl transition-all duration-200"
+                            title="Apply Filter"
+                          >
+                            <Filter className="w-4 h-4" />
+                          </motion.button> */}
+
                           <motion.button
                             whileHover={{ scale: 1.1 }}
                             whileTap={{ scale: 0.9 }}
@@ -537,6 +764,7 @@ export default function ProfilePage() {
                           >
                             <Share className="w-4 h-4" />
                           </motion.button>
+
                           <motion.button
                             whileHover={{ scale: 1.1 }}
                             whileTap={{ scale: 0.9 }}
@@ -591,7 +819,8 @@ export default function ProfilePage() {
 
                         <div className="flex-1 min-w-0">
                           <p className="text-lg font-semibold text-slate-700 mb-2">
-                            📸 Photo Session
+                            <Camera className="w-5 h-5 text-slate-700" />
+                            Photo Session
                           </p>
                           <p className="text-slate-600 mb-1">
                             {formatDate(photo.createdAt)}
@@ -643,15 +872,41 @@ export default function ProfilePage() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: 0.7 }}
-                  className="mt-8 text-center"
+                  className="mt-8 flex items-center justify-center gap-4"
                 >
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => (window.location.href = "/photos")}
-                    className="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-2xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl"
+                    onClick={loadMorePhotos}
+                    disabled={photosLoading || !hasMore}
+                    className="bg-red-500 hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-3 rounded-2xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl flex items-center space-x-2"
                   >
-                    View All Photos
+                    {photosLoading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                        <span>Loading...</span>
+                      </>
+                    ) : hasMore ? (
+                      <>
+                        <Download className="w-5 h-5" />
+                        <span>Load More</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="w-5 h-5 text-green-500" />
+                        <span>All Loaded</span>
+                      </>
+                    )}
+                  </motion.button>
+
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={refreshPhotos}
+                    className="bg-slate-700 hover:bg-slate-800 text-white px-6 py-3 rounded-2xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl flex items-center space-x-2"
+                  >
+                    <RefreshCw className="w-5 h-5" />
+                    <span>Refresh</span>
                   </motion.button>
                 </motion.div>
               )}
@@ -756,13 +1011,23 @@ export default function ProfilePage() {
                   <Share className="w-5 h-5" />
                   <span>Share WhatsApp</span>
                 </motion.button>
+
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => window.open(selected.url, "_blank")}
+                  className="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-2xl font-medium transition-all duration-200 shadow-lg hover:shadow-xl flex items-center space-x-2"
+                >
+                  <ExternalLink className="w-5 h-5" />
+                  <span>Open Original</span>
+                </motion.button>
               </motion.div>
             </div>
           </motion.div>
         </motion.div>
       )}
 
-      <Footer />
+      {/* <Footer /> */}
     </motion.div>
   );
 }
