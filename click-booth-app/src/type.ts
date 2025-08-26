@@ -61,6 +61,9 @@ export interface PaymentType {
   userId: ObjectId;
   amount: number;
   type: "token";
+  tokens: number;
+  packageName: "basic" | "pro" | "premium";
+  paymentMethod?: string;
   status: PaymentStatus;
   createdAt: Date;
   updatedAt: Date;

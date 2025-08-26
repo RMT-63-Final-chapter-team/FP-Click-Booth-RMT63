@@ -1,5 +1,6 @@
 import { PaymentType } from "@/type";
 import { database } from "../config/mongodb";
+import { ObjectId } from "mongodb";
 
 export class PaymentModel {
   static async collection() {
@@ -26,5 +27,18 @@ export class PaymentModel {
 
   static async findByOrderId(orderId: string) {
     return (await this.collection()).findOne({ orderId });
+  }
+
+  static async findByUserId(userId: string | ObjectId) {
+    const userObjectId =
+      typeof userId === "string" ? new ObjectId(userId) : userId;
+    return await (await this.collection())
+      .find({ userId: userObjectId })
+      .sort({ createdAt: -1 })
+      .toArray();
+  }
+
+  static async updateStatus(orderId: string, status: PaymentType["status"]) {
+    return await this.update(orderId, { status });
   }
 }
