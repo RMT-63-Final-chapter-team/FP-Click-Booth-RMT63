@@ -5,12 +5,7 @@ import errorHandler from "./helpers/errHandler";
 
 export const config = {
   // Lindungi API dan semua halaman admin
-  matcher: [
-    "/api/photos/:path*",
-    "/api/admin/:path*",
-    "/api/photos",
-    "/admin/:path*",
-  ],
+  matcher: ["/api/photos/:path*", "/api/admin/:path*", "/api/photos"],
 };
 
 export default async function middleware(req: NextRequest) {
