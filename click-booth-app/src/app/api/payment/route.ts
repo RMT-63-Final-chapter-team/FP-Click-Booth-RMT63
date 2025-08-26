@@ -1,9 +1,13 @@
-// ...existing code...
 import { NextResponse } from "next/server";
 import { PaymentModel } from "@/db/models/PaymentModel";
 import { snapClient } from "@/helpers/midtrans";
 import { ObjectId } from "mongodb";
 import { getUserFromCookies } from "@/helpers/getUserFromCookies";
+import {
+  PackageName,
+  resolvePackage,
+  TOKEN_PACKAGES,
+} from "@/helpers/tokenPackage";
 
 interface PaymentConfig {
   transaction_details: {
@@ -28,6 +32,8 @@ interface PaymentConfig {
   cstore?: {
     store: string;
   };
+  custom_field1?: string; // tokenAmount
+  custom_field2?: string; // packageName
 }
 
 function isValidEmail(email: string): boolean {
@@ -40,11 +46,14 @@ export async function POST(req: Request) {
   const body = await req.json();
   const amount = Number(body?.amount);
   const paymentMethod = body?.paymentMethod || "all";
+  // ⬇️ ambil paket & hitung price/tokens dari mapping (abaikan amount dari client)
+  const packageName: PackageName = resolvePackage(body?.packageType);
+  const { price, tokens: tokenAmount } = TOKEN_PACKAGES[packageName];
   const orderId =
     body?.orderId || `order-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
-  if (!amount || isNaN(amount) || amount <= 0) {
-    return NextResponse.json({ error: "Invalid amount" }, { status: 400 });
+  if (!price || isNaN(price) || price <= 0) {
+    return NextResponse.json({ error: "Invalid package" }, { status: 400 });
   }
   try {
     const user = await getUserFromCookies();
@@ -52,22 +61,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // ✅ AMBIL EMAIL DARI USER SESSION ATAU BODY
+    // AMBIL EMAIL DARI USER SESSION ATAU BODY
     const userEmail = user.email || body?.email || "";
     const userPhone = body?.phone || "";
 
-    // ✅ BUILD CUSTOMER DETAILS DENGAN EMAIL YANG VALID
+    // BUILD CUSTOMER DETAILS DENGAN EMAIL YANG VALID
     const customerDetails: PaymentConfig["customer_details"] = {
       first_name:
         body?.username || body?.name || user.email?.split("@")[0] || "Customer",
     };
 
-    // ✅ HANYA TAMBAHKAN EMAIL JIKA VALID
+    // HANYA TAMBAHKAN EMAIL JIKA VALID
     if (isValidEmail(userEmail)) {
       customerDetails.email = userEmail.trim();
     }
 
-    // ✅ HANYA TAMBAHKAN PHONE JIKA ADA
+    // HANYA TAMBAHKAN PHONE JIKA ADA
     if (userPhone && userPhone.length >= 10) {
       customerDetails.phone = userPhone.replace(/\D/g, ""); // hapus non-digit
     }
@@ -76,7 +85,7 @@ export async function POST(req: Request) {
     const paymentConfig: PaymentConfig = {
       transaction_details: {
         order_id: orderId,
-        gross_amount: amount,
+        gross_amount: price,
       },
       customer_details: customerDetails,
       // {
@@ -85,11 +94,13 @@ export async function POST(req: Request) {
       item_details: [
         {
           id: body?.itemId || orderId,
-          price: Number(body?.itemPrice ?? amount),
+          price,
           quantity: Number(body?.itemQuantity ?? 1),
           name: body?.itemName || "Buy Token",
         },
       ],
+      custom_field1: String(tokenAmount), // ⬅️ opsional, enak buat inspeksi di dashboard
+      custom_field2: packageName,
     };
 
     // SWITCH CASE UNTUK PAYMENT METHOD
@@ -162,8 +173,10 @@ export async function POST(req: Request) {
       orderId,
       // userId: body?.userId,
       userId: new ObjectId(user.id),
-      amount,
+      amount: price,
+      packageName,
       type: "token",
+      tokens: tokenAmount,
       paymentMethod,
       status: "pending",
       createdAt: new Date(),

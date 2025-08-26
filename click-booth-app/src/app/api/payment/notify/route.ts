@@ -54,8 +54,10 @@ export const POST = async (req: Request) => {
     console.log("Update result:", result);
     // Kalau sukses → tambah token user
     if (newStatus === "success" && payment.userId) {
-      // await UserModel.incrementToken(payment.userId, payment.amount);
-      await UserModel.incrementToken(payment.userId.toString(), 10);
+      await UserModel.incrementToken(
+        payment.userId.toString(),
+        payment.tokens // pake jumlah token dari DB, bukan hardcode
+      );
     }
 
     return NextResponse.json({ message: "OK", orderId, status: newStatus });
