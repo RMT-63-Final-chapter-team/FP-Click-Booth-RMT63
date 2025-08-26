@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "daisyui";
 
 /* ClickBooth Professional Color Palette */
 :root {
@@ -69,8 +70,8 @@
 /* Base Styles */
 * {
   box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+  /* margin: 0;
+  padding: 0; */
 }
 
 html {

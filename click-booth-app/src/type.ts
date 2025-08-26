@@ -105,3 +105,12 @@ export interface PhotoDoc {
   createdAt: Date;
   updatedAt?: Date;
 }
+
+export interface AiType {
+  _id?: ObjectId;
+  name: string;
+  prompt: string;
+  icon: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
