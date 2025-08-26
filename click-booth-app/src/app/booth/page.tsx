@@ -8,7 +8,7 @@ const AVAILABLE_FILTERS: { id: string; label: string; css: string }[] = [
   { id: "grayscale", label: "Grayscale", css: "grayscale(100%)" },
   { id: "sepia", label: "Sepia", css: "sepia(80%)" },
   { id: "invert", label: "Invert", css: "invert(100%)" },
-  { id: "bright", label: "Bright", css: "brightness(1.12)" }
+  { id: "bright", label: "Bright", css: "brightness(1.12)" },
 ];
 
 const LAYOUTS = [
@@ -16,7 +16,7 @@ const LAYOUTS = [
   { id: "layoutB", label: "layout B (4 poses)", cols: 1, poses: 4 },
   { id: "layoutC", label: "layout C (2 poses)", cols: 1, poses: 2 },
   { id: "layoutD", label: "layout D (6 poses)", cols: 2, poses: 6 },
-  { id: "studio", label: "Studio (4 poses)", cols: 1, poses: 4 }
+  { id: "studio", label: "Studio (4 poses)", cols: 1, poses: 4 },
 ];
 
 function LayoutPreview({ layoutId }: { layoutId: string }) {
@@ -33,7 +33,7 @@ function LayoutPreview({ layoutId }: { layoutId: string }) {
         style={{
           width: cols === 1 ? "100%" : "48%",
           height: 16,
-          margin: "2px"
+          margin: "2px",
         }}
       >
         {i + 1}
@@ -107,7 +107,10 @@ export default function BoothPage() {
     let mounted = true;
     async function checkSession() {
       try {
-        const res = await fetch("/api/me", { method: "GET", credentials: "include" });
+        const res = await fetch("/api/me", {
+          method: "GET",
+          credentials: "include",
+        });
         if (!mounted) return;
         if (res.ok) {
           const j = await res.json();
@@ -131,7 +134,10 @@ export default function BoothPage() {
   async function startCamera() {
     try {
       if (streamRef.current) {
-        if (videoRef.current && videoRef.current.srcObject !== streamRef.current) {
+        if (
+          videoRef.current &&
+          videoRef.current.srcObject !== streamRef.current
+        ) {
           videoRef.current.srcObject = streamRef.current;
         }
         try {
@@ -139,7 +145,9 @@ export default function BoothPage() {
         } catch {}
         return;
       }
-      const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+      const s = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user" },
+      });
       streamRef.current = s;
       if (videoRef.current) {
         videoRef.current.srcObject = s;
@@ -227,7 +235,8 @@ export default function BoothPage() {
     off.height = h;
     const ctx = off.getContext("2d");
     if (!ctx) return null;
-    const filterCss = AVAILABLE_FILTERS.find((f) => f.id === selectedFilter)?.css ?? "none";
+    const filterCss =
+      AVAILABLE_FILTERS.find((f) => f.id === selectedFilter)?.css ?? "none";
     (ctx as CanvasRenderingContext2D).filter = filterCss;
     ctx.drawImage(vid, 0, 0, w, h);
     return off.toDataURL("image/jpeg", 0.92);
@@ -312,7 +321,9 @@ export default function BoothPage() {
 
     // Don't automatically navigate to compose page
     // Let user see the result and choose actions (download, WhatsApp, QR)
-    setMessage("Photo composed successfully! You can now download, share, or view QR code.");
+    setMessage(
+      "Photo composed successfully! You can now download, share, or view QR code."
+    );
   }
 
   function retakeCurrentShot() {
@@ -328,7 +339,10 @@ export default function BoothPage() {
   async function ensureSession(): Promise<boolean> {
     if (loggedIn) return true;
     try {
-      const r = await fetch("/api/me", { method: "GET", credentials: "include" });
+      const r = await fetch("/api/me", {
+        method: "GET",
+        credentials: "include",
+      });
       if (!r.ok) return false;
       const j = await r.json();
       const ok = Boolean(j?.authenticated);
@@ -360,13 +374,13 @@ export default function BoothPage() {
         sendToWhatsapp: false, // Only save, don't send WA
         filter: selectedFilter,
         shots: shotsCount,
-        layout: selectedLayout
+        layout: selectedLayout,
       };
       const res = await fetch("/api/photos", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
       });
       if (res.status === 401) {
         setMessage("Harus login untuk save foto.");
@@ -413,13 +427,13 @@ export default function BoothPage() {
         sendToWhatsapp: true, // Request untuk share ke WhatsApp
         filter: selectedFilter,
         shots: shotsCount,
-        layout: selectedLayout
+        layout: selectedLayout,
       };
       const res = await fetch("/api/photos", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
       });
       if (res.status === 401) {
         setMessage("Harus login untuk share ke WhatsApp.");
@@ -458,7 +472,9 @@ export default function BoothPage() {
             <div className="flex flex-col lg:flex-row items-center gap-4 w-full lg:w-auto">
               {/* Layout Selection */}
               <div className="flex flex-col items-center gap-2">
-                <label className="text-sm font-bold text-charcoal-800 tracking-wide">LAYOUT</label>
+                <label className="text-sm font-bold text-charcoal-800 tracking-wide">
+                  LAYOUT
+                </label>
                 <select
                   value={selectedLayout}
                   onChange={(e) => setSelectedLayout(e.target.value)}
@@ -474,7 +490,9 @@ export default function BoothPage() {
 
               {/* Filter Selection */}
               <div className="flex flex-col items-center gap-2">
-                <label className="text-sm font-bold text-charcoal-800 tracking-wide">FILTER</label>
+                <label className="text-sm font-bold text-charcoal-800 tracking-wide">
+                  FILTER
+                </label>
                 <select
                   value={selectedFilter}
                   onChange={(e) => setSelectedFilter(e.target.value)}
@@ -491,7 +509,9 @@ export default function BoothPage() {
 
             {/* Center Section - Preview */}
             <div className="flex flex-col items-center gap-2">
-              <label className="text-sm font-bold text-charcoal-800 tracking-wide">PREVIEW</label>
+              <label className="text-sm font-bold text-charcoal-800 tracking-wide">
+                PREVIEW
+              </label>
               <LayoutPreview layoutId={selectedLayout} />
             </div>
 
@@ -529,7 +549,9 @@ export default function BoothPage() {
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse shadow-lg"></div>
-                    <span className="font-bold text-sm tracking-wide">CAMERA READY</span>
+                    <span className="font-bold text-sm tracking-wide">
+                      CAMERA READY
+                    </span>
                   </div>
                   {capturedDataUrls.length > 0 && (
                     <div className="bg-white/20 px-3 py-1 rounded-full">
@@ -557,22 +579,26 @@ export default function BoothPage() {
                   muted
                   playsInline
                   style={{
-                    display: finalComposed || previewCaptured ? "none" : "block",
+                    display:
+                      finalComposed || previewCaptured ? "none" : "block",
                     width: "100%",
                     height: "100%",
                     objectFit: "cover",
-                    filter: AVAILABLE_FILTERS.find((f) => f.id === selectedFilter)?.css ?? "none"
+                    filter:
+                      AVAILABLE_FILTERS.find((f) => f.id === selectedFilter)
+                        ?.css ?? "none",
                   }}
                 />
                 <canvas
                   ref={canvasRef}
                   aria-hidden={!finalComposed && !previewCaptured}
                   style={{
-                    display: finalComposed || previewCaptured ? "block" : "none",
+                    display:
+                      finalComposed || previewCaptured ? "block" : "none",
                     width: "100%",
                     height: "100%",
                     objectFit: "contain",
-                    backgroundColor: "#000"
+                    backgroundColor: "#000",
                   }}
                 />
 
@@ -580,7 +606,9 @@ export default function BoothPage() {
                 {!previewCaptured && !finalComposed && runningCountdown && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black/50">
                     <div className="bg-gradient-to-br from-coral-500 to-coral-600 w-20 h-20 rounded-full flex items-center justify-center shadow-2xl border-4 border-white animate-pulse">
-                      <span className="text-white text-2xl font-black">{countdown}</span>
+                      <span className="text-white text-2xl font-black">
+                        {countdown}
+                      </span>
                     </div>
                   </div>
                 )}
@@ -653,7 +681,9 @@ export default function BoothPage() {
                       </button>
                     ) : (
                       <button
-                        onClick={() => composeFinal().catch((e) => console.warn(e))}
+                        onClick={() =>
+                          composeFinal().catch((e) => console.warn(e))
+                        }
                         className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-6 py-3 rounded-full font-bold text-sm transition-all shadow-lg hover:shadow-xl transform hover:scale-105 border-2 border-green-400"
                       >
                         Compose
@@ -715,9 +745,12 @@ export default function BoothPage() {
                             layout: selectedLayout,
                             filter: selectedFilter,
                             shots: shotsCount,
-                            finalImage: finalImage
+                            finalImage: finalImage,
                           };
-                          sessionStorage.setItem("composePayload", JSON.stringify(payload));
+                          sessionStorage.setItem(
+                            "composePayload",
+                            JSON.stringify(payload)
+                          );
                           router.push("/compose");
                         } catch (e) {
                           console.warn("failed to save compose payload", e);
@@ -790,7 +823,9 @@ export default function BoothPage() {
                   <div className="bg-gradient-to-br from-coral-500 to-coral-600 text-white w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center font-black text-xl shadow-lg border-4 border-white">
                     1
                   </div>
-                  <h4 className="text-lg font-bold mb-2 text-charcoal-800">Setup</h4>
+                  <h4 className="text-lg font-bold mb-2 text-charcoal-800">
+                    Setup
+                  </h4>
                   <p className="text-sm text-charcoal-600">
                     Choose layout & filter, then start camera
                   </p>
@@ -799,14 +834,20 @@ export default function BoothPage() {
                   <div className="bg-gradient-to-br from-sage-500 to-sage-600 text-white w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center font-black text-xl shadow-lg border-4 border-white">
                     2
                   </div>
-                  <h4 className="text-lg font-bold mb-2 text-charcoal-800">Capture</h4>
-                  <p className="text-sm text-charcoal-600">Take photos with 3-second countdown</p>
+                  <h4 className="text-lg font-bold mb-2 text-charcoal-800">
+                    Capture
+                  </h4>
+                  <p className="text-sm text-charcoal-600">
+                    Take photos with 3-second countdown
+                  </p>
                 </div>
                 <div className="text-center">
                   <div className="bg-gradient-to-br from-charcoal-500 to-charcoal-600 text-white w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center font-black text-xl shadow-lg border-4 border-white">
                     3
                   </div>
-                  <h4 className="text-lg font-bold mb-2 text-charcoal-800">Share</h4>
+                  <h4 className="text-lg font-bold mb-2 text-charcoal-800">
+                    Share
+                  </h4>
                   <p className="text-sm text-charcoal-600">
                     Compose, download & share via WhatsApp
                   </p>

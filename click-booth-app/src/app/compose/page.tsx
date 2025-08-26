@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
+import { AiType, UserType } from "@/type";
+import Swal from "sweetalert2";
 
 interface Frame {
   id: string;
@@ -18,6 +20,8 @@ interface Frame {
   };
 }
 
+type TabCategory = "frame" | "sticker" | "ai";
+
 const frames: Frame[] = [
   { id: "none", name: "No Frame", src: "", category: "frame", type: "overlay" },
 
@@ -33,8 +37,8 @@ const frames: Frame[] = [
       orientation: "vertical",
       spacing: 10,
       background: "#e0f2f1",
-      branding: "clickbooth"
-    }
+      branding: "clickbooth",
+    },
   },
   {
     id: "strip-vertical-3",
@@ -47,8 +51,8 @@ const frames: Frame[] = [
       orientation: "vertical",
       spacing: 10,
       background: "#e1f5fe",
-      branding: "clickbooth"
-    }
+      branding: "clickbooth",
+    },
   },
   {
     id: "strip-vertical-4",
@@ -61,9 +65,9 @@ const frames: Frame[] = [
       orientation: "vertical",
       spacing: 10,
       background: "#fce4ec",
-      branding: "clickbooth"
-    }
-  }
+      branding: "clickbooth",
+    },
+  },
 
   // Tambahkan frame baru di sini:
   // { id: "birthday", name: "Birthday Frame", src: "/frames/birthday.png", category: "frame", type: "overlay" },
@@ -78,13 +82,50 @@ const frames: Frame[] = [
 export default function ComposePage() {
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [selectedFrame, setSelectedFrame] = useState<Frame>(frames[0]);
   const [isLoading, setIsLoading] = useState(false);
-  const [activeCategory, setActiveCategory] = useState<"frame" | "sticker">("frame");
+  const [activeCategory, setActiveCategory] = useState<TabCategory>("frame");
 
+  // === AI States ===
+  const [aiList, setAiList] = useState<AiType[]>([]);
+  const [aiPrompt, setAiPrompt] = useState<string>("");
+  const [size, setSize] = useState<string>("1024x1024");
+  const [aiErr, setAiErr] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [currentUser, setCurrentUser] = useState<UserType>();
+
+  // Fetch AI styles list (once)
   useEffect(() => {
-    // Try to get photo from URL parameters first
+    const fetchData = async () => {
+      try {
+        const response = await fetch("/api/admin/ai");
+        const data = await response.json();
+        setAiList(data?.data || []);
+      } catch (error) {
+        console.error("Error fetching AI data:", error);
+      }
+    };
+    fetchData();
+  }, []);
+
+  // Fetch current user
+  const fetchCurrentUser = async () => {
+    try {
+      const response = await fetch("/api/me");
+      const userData = await response.json();
+      setCurrentUser(userData);
+    } catch (error) {
+      console.error("Error fetching current user:", error);
+    }
+  };
+  useEffect(() => {
+    fetchCurrentUser();
+  }, []);
+
+  // Load selected photo from URL params or sessionStorage
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const photo = params.get("photo");
     if (photo) {
@@ -93,19 +134,13 @@ export default function ComposePage() {
       return;
     }
 
-    // If no URL parameter, try to get from sessionStorage (from booth page)
     try {
       const composePayload = sessionStorage.getItem("composePayload");
       if (composePayload) {
         const payload = JSON.parse(composePayload);
-        console.log("Compose payload:", payload);
-
-        // First try to use finalImage (if photo was already composed)
         if (payload.finalImage) {
           setSelectedPhoto(payload.finalImage);
-        }
-        // Fallback to first image from captured images
-        else if (payload.images && payload.images.length > 0) {
+        } else if (payload.images && payload.images.length > 0) {
           setSelectedPhoto(payload.images[0]);
         }
       }
@@ -114,10 +149,12 @@ export default function ComposePage() {
     }
   }, []);
 
+  // Redraw on updates
   useEffect(() => {
     if (selectedPhoto && canvasRef.current) {
       drawComposition();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPhoto, selectedFrame]);
 
   const drawComposition = () => {
@@ -127,16 +164,17 @@ export default function ComposePage() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Handle photobooth strip layout
     if (selectedFrame.type === "strip" && selectedFrame.stripConfig) {
       drawPhotoboothStrip(ctx, canvas);
     } else {
-      // Handle regular frame overlay
       drawRegularFrame(ctx, canvas);
     }
   };
 
-  const drawPhotoboothStrip = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
+  const drawPhotoboothStrip = (
+    ctx: CanvasRenderingContext2D,
+    canvas: HTMLCanvasElement
+  ) => {
     const config = selectedFrame.stripConfig!;
 
     // Get multiple photos from sessionStorage
@@ -155,9 +193,8 @@ export default function ComposePage() {
 
     // Ensure we have enough photos
     while (photos.length < config.photoCount && photos.length > 0) {
-      photos.push(photos[0]); // Duplicate first photo if not enough
+      photos.push(photos[0]);
     }
-
     if (photos.length === 0) return;
 
     // Calculate canvas size for strip
@@ -167,18 +204,18 @@ export default function ComposePage() {
     const brandingHeight = 40;
 
     if (config.orientation === "vertical") {
-      canvas.width = photoWidth + 40; // padding
-      canvas.height = photoHeight * config.photoCount + totalSpacing + brandingHeight + 40;
+      canvas.width = photoWidth + 40;
+      canvas.height =
+        photoHeight * config.photoCount + totalSpacing + brandingHeight + 40;
     } else {
       canvas.width = photoWidth * config.photoCount + totalSpacing + 40;
       canvas.height = photoHeight + brandingHeight + 40;
     }
 
-    // Clear and fill background
+    // Background
     ctx.fillStyle = config.background;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Draw photos
     const loadedImages: Promise<HTMLImageElement>[] = photos
       .slice(0, config.photoCount)
       .map((photoSrc) => {
@@ -202,39 +239,33 @@ export default function ComposePage() {
         }
       });
 
-      // Draw branding
+      // Branding
       if (config.branding) {
         ctx.fillStyle = "#333";
         ctx.font = "bold 16px Arial";
-        ctx.textAlign = "center";
+        ctx.textAlign = "center" as const;
 
-        if (config.orientation === "vertical") {
-          const brandingY = canvas.height - 15;
-          ctx.fillText(config.branding, canvas.width / 2, brandingY);
-        } else {
-          const brandingY = canvas.height - 10;
-          ctx.fillText(config.branding, canvas.width / 2, brandingY);
-        }
+        const brandingY =
+          canvas.height - (config.orientation === "vertical" ? 15 : 10);
+        ctx.fillText(config.branding, canvas.width / 2, brandingY);
       }
     });
   };
 
-  const drawRegularFrame = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
-    // Set canvas size
+  const drawRegularFrame = (
+    ctx: CanvasRenderingContext2D,
+    canvas: HTMLCanvasElement
+  ) => {
     canvas.width = 400;
     canvas.height = 300;
 
-    // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw photo
     if (selectedPhoto) {
       const img = new Image();
       img.crossOrigin = "anonymous";
       img.onload = () => {
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-        // Draw frame if selected
         if (selectedFrame.src) {
           const frameImg = new Image();
           frameImg.onload = () => {
@@ -257,6 +288,81 @@ export default function ComposePage() {
     link.click();
   };
 
+  // === Helper: canvas to File ===
+  const canvasToFile = async (canvas: HTMLCanvasElement, filename: string) => {
+    const blob: Blob = await new Promise((resolve) =>
+      canvas.toBlob((b) => resolve(b as Blob), "image/png")
+    );
+    return new File([blob], filename, { type: "image/png" });
+  };
+
+  // === Generate with AI using current preview (canvas) ===
+  const handleGenerateAI = async () => {
+    setAiErr(null);
+    if (!canvasRef.current) return;
+    if (!aiPrompt) {
+      setAiErr("Pilih gaya AI terlebih dahulu.");
+      return;
+    }
+
+    try {
+      if (!currentUser) {
+        Swal.fire({
+          icon: "warning",
+          title: "Please Login",
+          text: "You need to be logged in to access the AI features.",
+        });
+        return;
+      }
+
+      if (currentUser.tokens <= 0) {
+        Swal.fire({
+          icon: "warning",
+          title: "Insufficient Tokens",
+          text: "You don't have enough tokens to use the AI feature. Please top up your tokens.",
+        });
+        return;
+      }
+
+      setIsGenerating(true);
+      // Ambil image dari canvas saat ini agar frame/strip ikut terkirim
+      const imageFile = await canvasToFile(
+        canvasRef.current,
+        `compose-${Date.now()}.png`
+      );
+
+      const formData = new FormData();
+      formData.append("image", imageFile);
+      formData.append("prompt", aiPrompt);
+      formData.append("size", size);
+
+      const response = await fetch("/api/style", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        setAiErr(text || "Failed to generate style");
+        setIsGenerating(false);
+        return;
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+
+      // Ganti foto terpilih dengan hasil AI
+      setSelectedPhoto(url);
+      setActiveCategory("frame"); // kembali ke tab frame untuk lanjut styling jika mau
+      fetchCurrentUser(); // refresh user data (token)
+    } catch (error: any) {
+      console.error(error);
+      setAiErr(error?.message || "Unexpected error");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-coral-50 via-cream-50 to-sage-50 flex items-center justify-center">
@@ -274,7 +380,9 @@ export default function ComposePage() {
       <div className="bg-gradient-to-r from-coral-600 via-coral-500 to-sage-500 shadow-xl">
         <div className="container mx-auto px-6 py-6">
           <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-black text-white tracking-wide">🎨 COMPOSE EDITOR</h1>
+            <h1 className="text-2xl font-black text-white tracking-wide">
+              🎨 COMPOSE EDITOR
+            </h1>
             <button
               onClick={() => router.push("/booth")}
               className="bg-white/20 hover:bg-white/30 text-white px-6 py-2 rounded-full font-bold text-sm transition-all shadow-lg hover:shadow-xl transform hover:scale-105 border-2 border-white/30 backdrop-blur-sm"
@@ -290,8 +398,12 @@ export default function ComposePage() {
         {!selectedPhoto ? (
           <div className="text-center py-16">
             <div className="text-8xl mb-6">📷</div>
-            <h2 className="text-2xl font-bold text-charcoal-800 mb-4">No Photo Selected</h2>
-            <p className="text-charcoal-600 mb-8">Please take a photo first at the booth</p>
+            <h2 className="text-2xl font-bold text-charcoal-800 mb-4">
+              No Photo Selected
+            </h2>
+            <p className="text-charcoal-600 mb-8">
+              Please take a photo first at the booth
+            </p>
             <button
               onClick={() => router.push("/booth")}
               className="bg-gradient-to-r from-coral-500 to-coral-600 hover:from-coral-600 hover:to-coral-700 text-white px-8 py-4 rounded-full font-bold text-lg transition-all shadow-lg hover:shadow-xl transform hover:scale-105 border-2 border-coral-400"
@@ -319,7 +431,7 @@ export default function ComposePage() {
               </div>
 
               {selectedPhoto && (
-                <div className="flex justify-center">
+                <div className="flex flex-wrap gap-3 justify-center">
                   <button
                     onClick={handleDownload}
                     className="bg-gradient-to-r from-sage-500 to-sage-600 hover:from-sage-600 hover:to-sage-700 text-white px-8 py-3 rounded-full font-bold text-lg transition-all shadow-lg hover:shadow-xl transform hover:scale-105 border-2 border-sage-400 flex items-center gap-2"
@@ -333,11 +445,11 @@ export default function ComposePage() {
 
             {/* Right Panel - Controls */}
             <div className="space-y-6">
-              {/* Frame & Sticker Selection */}
+              {/* Frame / Sticker / AI Selection */}
               <div className="bg-white rounded-2xl shadow-xl p-6 border border-sage-200/50">
                 <h3 className="text-lg font-bold text-charcoal-800 mb-4 flex items-center gap-2">
                   <span className="text-xl">🎨</span>
-                  Frames & Stickers
+                  Frames, Stickers & AI
                 </h3>
 
                 {/* Category Tabs */}
@@ -362,54 +474,136 @@ export default function ComposePage() {
                   >
                     ✨ Stickers
                   </button>
+                  <button
+                    onClick={() => setActiveCategory("ai")}
+                    className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
+                      activeCategory === "ai"
+                        ? "bg-gradient-to-r from-indigo-500 to-indigo-600 text-white shadow-lg"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    🤖 AI Styles
+                  </button>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3">
-                  {frames
-                    .filter((frame) => frame.category === activeCategory || frame.id === "none")
-                    .map((frame) => (
-                      <button
-                        key={frame.id}
-                        onClick={() => setSelectedFrame(frame)}
-                        className={`p-4 rounded-xl border-2 transition-all transform hover:scale-105 font-medium ${
-                          selectedFrame.id === frame.id
-                            ? "bg-gradient-to-r from-sage-500 to-sage-600 text-white border-sage-400 shadow-lg"
-                            : "bg-gradient-to-r from-charcoal-100 to-charcoal-200 text-charcoal-700 border-charcoal-300 hover:from-charcoal-200 hover:to-charcoal-300 shadow-md hover:shadow-lg"
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
-                            {frame.type === "strip" ? (
-                              <div className="flex flex-col gap-1">
-                                {Array(frame.stripConfig?.photoCount || 2)
-                                  .fill(0)
-                                  .map((_, i) => (
-                                    <div key={i} className="w-2 h-1 bg-current rounded"></div>
-                                  ))}
-                              </div>
-                            ) : frame.src ? (
+                {/* Content per-tab */}
+                {activeCategory === "ai" ? (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-semibold mb-1">
+                        Select AI Style
+                      </label>
+                      <p>Token : {currentUser?.tokens}</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        {aiList.map((ai) => (
+                          <button
+                            key={String(ai._id)}
+                            onClick={() => setAiPrompt(ai.prompt)}
+                            className={`p-3 rounded-full border-2 transition-all transform hover:scale-105 font-medium flex items-center gap-2 ${
+                              aiPrompt === ai.prompt
+                                ? "bg-gradient-to-r from-indigo-500 to-indigo-600 text-white border-indigo-400 shadow-lg"
+                                : "bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 border-gray-300 hover:from-gray-200 hover:to-gray-300 shadow-md hover:shadow-lg"
+                            }`}
+                          >
+                            <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0">
                               <img
-                                src={frame.src}
-                                alt={frame.name}
-                                className="w-8 h-8 object-cover rounded"
+                                src={ai.icon}
+                                alt={ai.name}
+                                className="w-full h-full object-cover"
                               />
-                            ) : (
-                              <span className="text-lg">🚫</span>
+                            </div>
+                            <span className="flex-1 text-left text-sm">
+                              {ai.name}
+                            </span>
+                            {aiPrompt === ai.prompt && (
+                              <span className="text-sm">✓</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {aiErr && (
+                      <div className="text-red-600 text-sm">{aiErr}</div>
+                    )}
+
+                    <button
+                      disabled={!selectedPhoto || !aiPrompt || isGenerating}
+                      onClick={handleGenerateAI}
+                      className={`w-full px-4 py-3 rounded-lg font-semibold border-2 transition-all shadow ${
+                        isGenerating
+                          ? "bg-gray-200 text-gray-600 border-gray-300 cursor-not-allowed"
+                          : "bg-gradient-to-r from-indigo-500 to-indigo-600 text-white border-indigo-400 hover:from-indigo-600 hover:to-indigo-700"
+                      }`}
+                    >
+                      {isGenerating
+                        ? "Processing…"
+                        : "Generate Style from Preview"}
+                    </button>
+
+                    <p className="text-xs text-gray-500">
+                      * Hasil AI akan menggantikan foto saat ini dan tetap bisa
+                      diberi frame/sticker lagi.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3">
+                    {frames
+                      .filter(
+                        (frame) =>
+                          frame.category === activeCategory ||
+                          frame.id === "none"
+                      )
+                      .map((frame) => (
+                        <button
+                          key={frame.id}
+                          onClick={() => setSelectedFrame(frame)}
+                          className={`p-4 rounded-xl border-2 transition-all transform hover:scale-105 font-medium ${
+                            selectedFrame.id === frame.id
+                              ? "bg-gradient-to-r from-sage-500 to-sage-600 text-white border-sage-400 shadow-lg"
+                              : "bg-gradient-to-r from-charcoal-100 to-charcoal-200 text-charcoal-700 border-charcoal-300 hover:from-charcoal-200 hover:to-charcoal-300 shadow-md hover:shadow-lg"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                              {frame.type === "strip" ? (
+                                <div className="flex flex-col gap-1">
+                                  {Array(frame.stripConfig?.photoCount || 2)
+                                    .fill(0)
+                                    .map((_, i) => (
+                                      <div
+                                        key={i}
+                                        className="w-2 h-1 bg-current rounded"
+                                      ></div>
+                                    ))}
+                                </div>
+                              ) : frame.src ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={frame.src}
+                                  alt={frame.name}
+                                  className="w-8 h-8 object-cover rounded"
+                                />
+                              ) : (
+                                <span className="text-lg">🚫</span>
+                              )}
+                            </div>
+                            <span className="flex-1 text-left">
+                              {frame.name}
+                              {frame.type === "strip" && (
+                                <span className="block text-xs opacity-70">
+                                  {frame.stripConfig?.photoCount} photos strip
+                                </span>
+                              )}
+                            </span>
+                            {selectedFrame.id === frame.id && (
+                              <span className="text-lg">✓</span>
                             )}
                           </div>
-                          <span className="flex-1 text-left">
-                            {frame.name}
-                            {frame.type === "strip" && (
-                              <span className="block text-xs opacity-70">
-                                {frame.stripConfig?.photoCount} photos strip
-                              </span>
-                            )}
-                          </span>
-                          {selectedFrame.id === frame.id && <span className="text-lg">✓</span>}
-                        </div>
-                      </button>
-                    ))}
-                </div>
+                        </button>
+                      ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
