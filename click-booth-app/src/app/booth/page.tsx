@@ -6,16 +6,16 @@ const AVAILABLE_FILTERS: { id: string; label: string; css: string }[] = [
   { id: "none", label: "None", css: "none" },
   { id: "grayscale", label: "Grayscale", css: "grayscale(100%)" },
   { id: "sepia", label: "Sepia", css: "sepia(80%)" },
-  { id: "invert", label: "Invert", css: "invert(100%)" },
   { id: "bright", label: "Bright", css: "brightness(1.12)" },
 ];
 
 const LAYOUTS = [
-  { id: "layoutA", label: "layout A (3 poses)", cols: 1, poses: 3 },
-  { id: "layoutB", label: "layout B (4 poses)", cols: 1, poses: 4 },
-  { id: "layoutC", label: "layout C (2 poses)", cols: 1, poses: 2 },
-  { id: "layoutD", label: "layout D (6 poses)", cols: 2, poses: 6 },
-  { id: "studio", label: "Studio (4 poses)", cols: 1, poses: 4 },
+  { id: "single", label: "Single Photo", cols: 1, poses: 1 },
+  { id: "double-vertical", label: "Double Vertical", cols: 1, poses: 2 },
+  { id: "double-horizontal", label: "Double Horizontal", cols: 2, poses: 2 },
+  { id: "triple-vertical", label: "Creative Collage", cols: 1, poses: 3 },
+  { id: "quad-vertical", label: "Quad Vertical", cols: 1, poses: 4 },
+  { id: "quad-horizontal", label: "Quad Horizontal", cols: 2, poses: 4 },
 ];
 
 function LayoutPreview({ layoutId }: { layoutId: string }) {
@@ -64,6 +64,7 @@ export default function BoothPage() {
 
   const [runningCountdown, setRunningCountdown] = useState(false);
   const [countdown, setCountdown] = useState(3);
+  const [isCapturing, setIsCapturing] = useState(false);
 
   const [shotsCount, setShotsCount] = useState<number>(LAYOUTS[0].poses);
   const [selectedLayout, setSelectedLayout] = useState<string>(LAYOUTS[0].id);
@@ -72,6 +73,7 @@ export default function BoothPage() {
   const [capturedDataUrls, setCapturedDataUrls] = useState<string[]>([]);
   const [previewCaptured, setPreviewCaptured] = useState<string | null>(null);
   const [finalComposed, setFinalComposed] = useState(false);
+  const [savedPhotoId, setSavedPhotoId] = useState<string | null>(null);
 
   // This useEffect is no longer needed since we get shots directly from sessionStorage
   // useEffect(() => {
@@ -231,14 +233,17 @@ export default function BoothPage() {
           done = true;
           res();
         }
-      }, 500);
+      }, 800); // Increased timeout for better frame refresh
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          if (!done) {
-            done = true;
-            clearTimeout(safeTimeout);
-            res();
-          }
+          requestAnimationFrame(() => {
+            // Additional frame wait
+            if (!done) {
+              done = true;
+              clearTimeout(safeTimeout);
+              res();
+            }
+          });
         });
       });
     });
@@ -262,44 +267,71 @@ export default function BoothPage() {
   }
 
   async function takePhotoOnce() {
-    if (!videoRef.current) return;
-    await ensureFreshFrame();
+    if (!videoRef.current || isCapturing) return;
 
-    let dataUrl = await captureOnceFromVideo();
-    if (!dataUrl) return;
-
-    // retry a few times if identical to last saved (avoid duplicated identical captures)
-    let tries = 0;
-    while (tries < 4) {
-      const last = capturedDataUrls[capturedDataUrls.length - 1] ?? null;
-      if (!last || dataUrl !== last) break;
-      await new Promise((r) => setTimeout(r, 200));
+    setIsCapturing(true);
+    try {
       await ensureFreshFrame();
-      dataUrl = await captureOnceFromVideo();
+
+      let dataUrl = await captureOnceFromVideo();
       if (!dataUrl) return;
-      tries++;
-    }
 
-    // append safely and trigger compose using the NEXT array (avoid reading stale state)
-    setCapturedDataUrls((prev) => {
-      const last = prev[prev.length - 1] ?? null;
-      if (last === dataUrl) return prev;
-      const next = [...prev, dataUrl];
-
-      // schedule side-effect with the concrete `next` array so composeFinal sees correct images
-      setTimeout(() => {
-        if (next.length >= shotsCount) {
-          composeFinal(next).catch((e) => console.warn(e));
-        } else {
-          startCamera();
+      // retry a few times if identical to last saved (avoid duplicated identical captures)
+      let tries = 0;
+      while (tries < 4) {
+        const last = capturedDataUrls[capturedDataUrls.length - 1] ?? null;
+        if (!last || dataUrl !== last) {
+          console.log("Photo accepted after", tries, "tries");
+          break;
         }
-      }, 250);
+        console.warn("Duplicate photo detected, retrying...", tries + 1);
+        await new Promise((r) => setTimeout(r, 300)); // Increased delay
+        await ensureFreshFrame();
+        dataUrl = await captureOnceFromVideo();
+        if (!dataUrl) return;
+        tries++;
+      }
 
-      return next;
-    });
+      if (tries >= 4) {
+        console.warn(
+          "Could not get unique photo after 4 tries, using current capture"
+        );
+      }
 
-    setPreviewCaptured(dataUrl);
-    setFinalComposed(false);
+      // append safely and trigger compose using the NEXT array (avoid reading stale state)
+      setCapturedDataUrls((prev) => {
+        const last = prev[prev.length - 1] ?? null;
+        if (last === dataUrl) {
+          console.warn("Skipping duplicate photo capture");
+          return prev;
+        }
+        const next = [...prev, dataUrl];
+
+        console.log("Photo captured:", {
+          photoNumber: next.length,
+          totalExpected: shotsCount,
+          photoPreview: dataUrl.substring(0, 50) + "...",
+          isUnique: !prev.includes(dataUrl),
+          willTriggerCompose: next.length >= shotsCount,
+        });
+
+        // schedule side-effect with the concrete `next` array so composeFinal sees correct images
+        setTimeout(() => {
+          if (next.length >= shotsCount) {
+            composeFinal(next).catch((e) => console.warn(e));
+          } else {
+            startCamera();
+          }
+        }, 250);
+
+        return next;
+      });
+
+      setPreviewCaptured(dataUrl);
+      setFinalComposed(false);
+    } finally {
+      setIsCapturing(false);
+    }
   }
 
   async function composeFinal(imgsOverride?: string[]) {
@@ -307,6 +339,13 @@ export default function BoothPage() {
     if (!canvas) return;
 
     const imgs = (imgsOverride ?? capturedDataUrls).slice(0, shotsCount);
+    console.log("composeFinal called with:", {
+      imageCount: imgs.length,
+      expectedShots: shotsCount,
+      selectedLayout: selectedLayout,
+      imageSources: imgs.map((img, i) => `${i}: ${img.substring(0, 50)}...`),
+    });
+
     if (imgs.length === 0) return;
 
     const loadImgs = imgs.map((d) => {
@@ -338,19 +377,91 @@ export default function BoothPage() {
     setPreviewCaptured(null);
     stopCamera();
 
+    // Auto-save photo to database for compose functionality
+    await autoSavePhoto(canvas, imgs);
+
     // Save data to sessionStorage but don't auto-redirect
     try {
       const finalImage = canvas.toDataURL();
+      const imagesToSave = (imgsOverride ?? capturedDataUrls).slice(
+        0,
+        shotsCount
+      );
       const payload = {
-        images: (imgsOverride ?? capturedDataUrls).slice(0, shotsCount), // Use original data URLs
+        images: imagesToSave, // Use original data URLs
         layout: selectedLayout,
         filter: selectedFilter,
         shots: shotsCount,
         finalImage: finalImage,
       };
+
+      console.log("Saving to sessionStorage:", {
+        imageCount: imagesToSave.length,
+        expectedShots: shotsCount,
+        layout: selectedLayout,
+        imagePreviews: imagesToSave.map(
+          (img, i) => `${i}: ${img.substring(0, 50)}...`
+        ),
+      });
+
       sessionStorage.setItem("composePayload", JSON.stringify(payload));
     } catch (e) {
       console.warn("failed to save compose payload", e);
+    }
+  }
+
+  // Auto-save photo to database for compose functionality
+  async function autoSavePhoto(
+    canvas: HTMLCanvasElement,
+    imagesArray?: string[]
+  ) {
+    // Prevent double uploads
+    if (savedPhotoId) {
+      console.log("Photo already saved, skipping duplicate upload");
+      return;
+    }
+
+    try {
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+      // Use provided images array or fallback to capturedDataUrls
+      const imagesToSave = imagesArray || capturedDataUrls.slice(0, shotsCount);
+
+      console.log("Auto-saving photo with data:", {
+        totalCaptured: capturedDataUrls.length,
+        expectedShots: shotsCount,
+        imagesToSave: imagesToSave.length,
+        layout: selectedLayout,
+        usingProvidedArray: !!imagesArray,
+      });
+
+      const body = {
+        imageData: dataUrl,
+        sendToWhatsapp: false,
+        filter: selectedFilter,
+        shots: shotsCount,
+        layout: selectedLayout,
+        // Include individual images for better compose support
+        images: imagesToSave,
+        // Flag to skip Cloudinary upload for booth photos
+        skipCloudinaryUpload: true,
+      };
+
+      const res = await fetch("/api/photos", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.photo?._id) {
+          setSavedPhotoId(data.photo._id);
+          console.log("Photo auto-saved with ID:", data.photo._id);
+        }
+      }
+    } catch (e) {
+      console.warn("Auto-save failed:", e);
     }
   }
 
@@ -372,7 +483,13 @@ export default function BoothPage() {
   }
 
   function goToEditPhotos() {
-    router.push("/compose");
+    if (savedPhotoId) {
+      // Navigate with photo ID for DB-based compose
+      router.push(`/compose?photoId=${savedPhotoId}`);
+    } else {
+      // Fallback to sessionStorage-based compose
+      router.push("/compose");
+    }
   }
 
   return (
