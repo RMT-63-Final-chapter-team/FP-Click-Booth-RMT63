@@ -29,20 +29,28 @@ const layouts = [
     preview: "/frames/double-horizontal-preview.png",
   },
   {
-    id: "quad",
-    name: "Quad Layout",
+    id: "triple-vertical",
+    name: "Creative Collage",
+    shots: 3,
+    description: "Three photos arranged artistically",
+    icon: "🎨",
+    preview: "/frames/collage-preview.png",
+  },
+  {
+    id: "quad-vertical",
+    name: "Quad Vertical",
     shots: 4,
-    description: "Classic photo booth strip",
+    description: "Four photos stacked vertically",
     icon: "🎞️",
     preview: "/frames/quad-preview.png",
   },
   {
-    id: "collage",
-    name: "Creative Collage",
-    shots: 3,
-    description: "Artistic arrangement",
-    icon: "🎨",
-    preview: "/frames/collage-preview.png",
+    id: "quad-horizontal",
+    name: "Quad Horizontal",
+    shots: 4,
+    description: "Four photos arranged horizontally",
+    icon: "�",
+    preview: "/frames/quad-horizontal-preview.png",
   },
 ];
 
@@ -143,19 +151,27 @@ export default function LayoutSelectionPage() {
                   <div className="text-6xl opacity-60">{layout.icon}</div>
                   {/* Layout Preview Pattern */}
                   <div className="absolute inset-4 border-2 border-dashed border-gray-400 rounded-lg flex items-center justify-center">
-                    <div className="grid grid-cols-2 gap-2 w-full h-full p-2">
+                    <div
+                      className={`grid gap-1 w-full h-full p-2 ${
+                        layout.id === "single"
+                          ? "grid-cols-1"
+                          : layout.id === "double-vertical"
+                          ? "grid-cols-1 grid-rows-2"
+                          : layout.id === "double-horizontal"
+                          ? "grid-cols-2 grid-rows-1"
+                          : layout.id === "triple-vertical"
+                          ? "grid-cols-1 grid-rows-3"
+                          : layout.id === "quad-vertical"
+                          ? "grid-cols-1 grid-rows-4"
+                          : layout.id === "quad-horizontal"
+                          ? "grid-cols-4 grid-rows-1"
+                          : "grid-cols-2"
+                      }`}
+                    >
                       {Array.from({ length: layout.shots }).map((_, i) => (
                         <div
                           key={i}
-                          className={`bg-white rounded border border-gray-300 ${
-                            layout.id === "single"
-                              ? "col-span-2"
-                              : layout.id === "double-vertical"
-                              ? "col-span-2"
-                              : layout.id === "collage" && i === 0
-                              ? "col-span-2"
-                              : ""
-                          }`}
+                          className="bg-white rounded border border-gray-300 min-h-4"
                         />
                       ))}
                     </div>

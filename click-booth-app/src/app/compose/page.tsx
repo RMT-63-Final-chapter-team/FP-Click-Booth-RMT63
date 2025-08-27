@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { QRCodeCanvas } from "qrcode.react";
 import { AiType, UserType } from "@/type";
 import Swal from "sweetalert2";
@@ -24,8 +24,11 @@ interface Frame {
 
 type TabCategory = "frame" | "sticker" | "ai";
 
-// Generate frames based on selected layout data
-function generateFramesForLayout(shotsCount: number): Frame[] {
+// Generate frames based on selected layout data with orientation awareness
+function generateFramesForLayout(
+  shotsCount: number,
+  layoutId?: string
+): Frame[] {
   const baseFrames: Frame[] = [
     {
       id: "none",
@@ -35,6 +38,21 @@ function generateFramesForLayout(shotsCount: number): Frame[] {
       type: "overlay",
     },
   ];
+
+  // Determine layout orientation
+  const isVerticalLayout =
+    !layoutId ||
+    layoutId.includes("vertical") ||
+    layoutId === "single" ||
+    layoutId === "triple-vertical";
+  const isHorizontalLayout = layoutId?.includes("horizontal");
+
+  console.log("Generating frames for layout:", {
+    layoutId,
+    shotsCount,
+    isVerticalLayout,
+    isHorizontalLayout,
+  });
 
   // Color variations for strips
   const colorVariations = [
@@ -48,25 +66,28 @@ function generateFramesForLayout(shotsCount: number): Frame[] {
     { id: "sunset", name: "Sunset", background: "#fab1a0", accent: "#e17055" },
   ];
 
-  // Generate strip frames based on shots count
+  // Generate frames based on layout orientation
   colorVariations.forEach((color) => {
-    baseFrames.push({
-      id: `strip-vertical-${shotsCount}-${color.id}`,
-      name: `${shotsCount} Photos Strip (${color.name})`,
-      src: "",
-      category: "frame",
-      type: "strip",
-      stripConfig: {
-        photoCount: shotsCount,
-        orientation: "vertical",
-        spacing: 8,
-        background: color.background,
-        branding: "ClickBooth",
-      },
-    });
+    // For vertical layouts, ONLY vertical frames
+    if (isVerticalLayout) {
+      baseFrames.push({
+        id: `strip-vertical-${shotsCount}-${color.id}`,
+        name: `${shotsCount} Photos Vertical (${color.name})`,
+        src: "",
+        category: "frame",
+        type: "strip",
+        stripConfig: {
+          photoCount: shotsCount,
+          orientation: "vertical",
+          spacing: 8,
+          background: color.background,
+          branding: "ClickBooth",
+        },
+      });
+    }
 
-    // Also add horizontal version for 2+ photos
-    if (shotsCount >= 2) {
+    // For horizontal layouts, ONLY horizontal frames
+    if (isHorizontalLayout) {
       baseFrames.push({
         id: `strip-horizontal-${shotsCount}-${color.id}`,
         name: `${shotsCount} Photos Horizontal (${color.name})`,
@@ -146,6 +167,7 @@ const defaultFrames: Frame[] = [
 
 export default function ComposePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Layout data from session
@@ -156,7 +178,7 @@ export default function ComposePage() {
 
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [selectedFrame, setSelectedFrame] = useState<Frame>(defaultFrames[0]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState<TabCategory>("frame");
 
   // === AI States ===
@@ -173,32 +195,165 @@ export default function ComposePage() {
   const [message, setMessage] = useState<string | null>(null);
   const [loggedIn, setLoggedIn] = useState(false);
 
-  // Load photos and layout data from sessionStorage when component mounts
+  // === DB Photo Data ===
+  const [dbPhotoData, setDbPhotoData] = useState<any>(null);
+  const [layoutInfo, setLayoutInfo] = useState<{
+    shots: number;
+    layout: string;
+  } | null>(null);
+  const [aiGeneratedImage, setAiGeneratedImage] = useState<string | null>(null);
+  const [originalPhotos, setOriginalPhotos] = useState<string[]>([]); // Store original photos without frames
+
+  // === Rendering Control ===
+  const [isRendering, setIsRendering] = useState(false);
+  const renderTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Load photos and layout data from DB (if photoId provided) or sessionStorage
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    let isMounted = true; // Prevent state updates if component unmounts
+
+    async function loadPhotoData() {
+      if (typeof window === "undefined") return;
+
+      // Get photoId once to prevent re-execution issues
+      const urlParams = new URLSearchParams(window.location.search);
+      const photoId = urlParams.get("photoId");
+
+      if (photoId) {
+        // Load from database
+        try {
+          console.log("Loading photo from DB with ID:", photoId);
+          const response = await fetch(`/api/photos/${photoId}`);
+          if (response.ok) {
+            const data = await response.json();
+            const photo = data.photo;
+
+            if (!isMounted) return; // Exit if component unmounted
+
+            setDbPhotoData(photo);
+
+            // Set layout info from DB
+            const shotsCount = photo.shots || 4;
+            const layoutId = photo.layout || "layoutB";
+            setLayoutInfo({ shots: shotsCount, layout: layoutId });
+
+            // Generate frames based on DB layout data
+            const framesForLayout = generateFramesForLayout(
+              shotsCount,
+              layoutId
+            );
+            setAvailableFrames(framesForLayout);
+            setSelectedFrame(framesForLayout[0]);
+
+            // For DB photos, use individual images if available, otherwise main photo
+            if (photo.images && photo.images.length > 0) {
+              setCapturedPhotos(photo.images);
+              setOriginalPhotos(photo.images); // Store original photos
+              setSelectedPhoto(photo.images[0]);
+            } else if (photo.url) {
+              setCapturedPhotos([photo.url]);
+              setOriginalPhotos([photo.url]); // Store original photo
+              setSelectedPhoto(photo.url);
+            }
+
+            console.log("Loaded photo from DB:", {
+              photoId,
+              shots: shotsCount,
+              layout: layoutId,
+              url: photo.url,
+              imageCount: photo.images?.length || 0,
+            });
+
+            setIsLoading(false);
+            return; // Exit early if DB load successful
+          }
+        } catch (error) {
+          console.warn("Failed to load photo from DB:", error);
+        }
+      }
+
+      if (!isMounted) return; // Exit if component unmounted
+
+      // Fallback to sessionStorage (original behavior)
+      console.log("Loading from sessionStorage");
       const savedPhotos = sessionStorage.getItem("capturedPhotos");
       const savedLayout = sessionStorage.getItem("selectedLayout");
+      const composePayload = sessionStorage.getItem("composePayload");
 
-      if (savedPhotos) {
-        const photos = JSON.parse(savedPhotos);
-        setCapturedPhotos(photos);
+      if (composePayload) {
+        try {
+          const payload = JSON.parse(composePayload);
+          const photos = payload.images || [];
+
+          console.log("Loaded composePayload from sessionStorage:", {
+            totalImages: photos.length,
+            expectedShots: payload.shots,
+            layout: payload.layout,
+            imagePreviews: photos.map(
+              (img: string, i: number) => `${i}: ${img.substring(0, 50)}...`
+            ),
+            allImagesUnique: photos.length === new Set(photos).size,
+          });
+
+          setCapturedPhotos(photos);
+          setOriginalPhotos(photos); // Store original photos from sessionStorage
+          setLayoutInfo({
+            shots: payload.shots || 4,
+            layout: payload.layout || "layoutB",
+          });
+
+          // Generate frames based on sessionStorage data
+          const framesForLayout = generateFramesForLayout(
+            payload.shots || 4,
+            payload.layout
+          );
+          setAvailableFrames(framesForLayout);
+          setSelectedFrame(framesForLayout[0]);
+
+          console.log("Photos loaded successfully from sessionStorage");
+        } catch (e) {
+          console.warn("Failed to load compose payload:", e);
+        }
+      } else {
+        // Legacy fallback
+        if (savedPhotos) {
+          const photos = JSON.parse(savedPhotos);
+          setCapturedPhotos(photos);
+          setOriginalPhotos(photos); // Store original photos
+        }
+
+        if (savedLayout) {
+          const layout = JSON.parse(savedLayout);
+          setLayoutInfo({ shots: layout.shots, layout: layout.id });
+          // Generate frames based on layout shots count
+          const framesForLayout = generateFramesForLayout(
+            layout.shots,
+            layout.id
+          );
+          setAvailableFrames(framesForLayout);
+          setSelectedFrame(framesForLayout[0]);
+        }
       }
 
-      if (savedLayout) {
-        const layout = JSON.parse(savedLayout);
-        // Generate frames based on layout shots count
-        const framesForLayout = generateFramesForLayout(layout.shots);
-        setAvailableFrames(framesForLayout);
-        setSelectedFrame(framesForLayout[0]);
-      }
+      setIsLoading(false);
     }
-  }, []);
+
+    loadPhotoData();
+
+    return () => {
+      isMounted = false; // Cleanup to prevent state updates after unmount
+      // Cleanup render timeout
+      if (renderTimeoutRef.current) {
+        clearTimeout(renderTimeoutRef.current);
+      }
+    };
+  }, []); // Remove searchParams dependency to prevent re-rendering
 
   // Fetch AI styles list (once)
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch("/api/admin/ai");
+        const response = await fetch("/api/style/list");
         const data = await response.json();
         setAiList(data?.data || []);
       } catch (error) {
@@ -268,13 +423,17 @@ export default function ComposePage() {
     }
   }, []);
 
-  // Redraw on updates
+  // Redraw on updates with debounce to prevent multiple rapid calls
   useEffect(() => {
-    if (selectedPhoto && canvasRef.current) {
-      drawComposition();
+    if (selectedPhoto && canvasRef.current && !isLoading) {
+      const timeoutId = setTimeout(() => {
+        drawComposition();
+      }, 150);
+
+      return () => clearTimeout(timeoutId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPhoto, selectedFrame]);
+  }, [selectedPhoto, selectedFrame, aiGeneratedImage, isLoading]);
 
   const drawComposition = () => {
     const canvas = canvasRef.current;
@@ -296,38 +455,91 @@ export default function ComposePage() {
   ) => {
     const config = selectedFrame.stripConfig!;
 
-    // Get multiple photos from sessionStorage
+    console.log("🎬 Drawing strip frame:", {
+      frameId: selectedFrame.id,
+      frameName: selectedFrame.name,
+      frameColor: selectedFrame.stripConfig?.background,
+      hasAI: !!aiGeneratedImage,
+      isRendering: isRendering,
+      timestamp: Date.now(),
+    });
+
+    // Get photos from various sources (DB, sessionStorage, or current captured photos)
     let photos: string[] = [];
-    try {
-      const composePayload = sessionStorage.getItem("composePayload");
-      if (composePayload) {
-        const payload = JSON.parse(composePayload);
-        photos = payload.images || (selectedPhoto ? [selectedPhoto] : []);
-      } else {
-        photos = selectedPhoto ? [selectedPhoto] : [];
+
+    // Check for AI generated image first, but preserve layout
+    if (dbPhotoData && dbPhotoData.images && dbPhotoData.images.length > 0) {
+      // Use individual photos from DB if available
+      photos = dbPhotoData.images;
+    } else if (dbPhotoData) {
+      // For DB photos without individual images, use the main photo repeated
+      // This is a fallback - ideally we'd store individual photos in DB
+      const mainPhoto = dbPhotoData.url || selectedPhoto;
+      if (mainPhoto) {
+        photos = Array(config.photoCount).fill(mainPhoto);
       }
-    } catch (e) {
-      photos = selectedPhoto ? [selectedPhoto] : [];
+    } else {
+      // Use sessionStorage or captured photos (original behavior)
+      try {
+        const composePayload = sessionStorage.getItem("composePayload");
+        if (composePayload) {
+          const payload = JSON.parse(composePayload);
+          photos =
+            payload.images ||
+            capturedPhotos ||
+            (selectedPhoto ? [selectedPhoto] : []);
+        } else {
+          photos =
+            capturedPhotos.length > 0
+              ? capturedPhotos
+              : selectedPhoto
+              ? [selectedPhoto]
+              : [];
+        }
+      } catch (e) {
+        photos =
+          capturedPhotos.length > 0
+            ? capturedPhotos
+            : selectedPhoto
+            ? [selectedPhoto]
+            : [];
+      }
     }
 
-    // Ensure we have enough photos
-    while (photos.length < config.photoCount && photos.length > 0) {
-      photos.push(photos[0]);
-    }
+    // Debug logging to track photo sources
+    console.log("Drawing strip with photos:", {
+      source: aiGeneratedImage
+        ? "AI-overlay"
+        : dbPhotoData?.images?.length
+        ? "DB-images"
+        : dbPhotoData
+        ? "DB-main"
+        : "sessionStorage",
+      photoCount: photos.length,
+      expectedCount: config.photoCount,
+      hasAI: !!aiGeneratedImage,
+      photos: photos.map((p, i) => `${i}: ${p.substring(0, 50)}...`),
+    });
+
+    // Don't duplicate photos - use only available photos
     if (photos.length === 0) return;
 
-    // Calculate canvas size for strip
+    // Use actual number of photos available instead of forcing config.photoCount
+    const actualPhotoCount = Math.min(photos.length, config.photoCount);
+    const photosToUse = photos.slice(0, actualPhotoCount);
+
+    // Calculate canvas size for strip using actual photo count
     const photoWidth = 300;
     const photoHeight = 200;
-    const totalSpacing = (config.photoCount - 1) * config.spacing;
+    const totalSpacing = (actualPhotoCount - 1) * config.spacing;
     const brandingHeight = 40;
 
     if (config.orientation === "vertical") {
       canvas.width = photoWidth + 40;
       canvas.height =
-        photoHeight * config.photoCount + totalSpacing + brandingHeight + 40;
+        photoHeight * actualPhotoCount + totalSpacing + brandingHeight + 40;
     } else {
-      canvas.width = photoWidth * config.photoCount + totalSpacing + 40;
+      canvas.width = photoWidth * actualPhotoCount + totalSpacing + 40;
       canvas.height = photoHeight + brandingHeight + 40;
     }
 
@@ -335,9 +547,8 @@ export default function ComposePage() {
     ctx.fillStyle = config.background;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    const loadedImages: Promise<HTMLImageElement>[] = photos
-      .slice(0, config.photoCount)
-      .map((photoSrc) => {
+    const loadedImages: Promise<HTMLImageElement>[] = photosToUse.map(
+      (photoSrc) => {
         return new Promise((resolve) => {
           const img = new Image();
           img.crossOrigin = "anonymous";
@@ -345,9 +556,18 @@ export default function ComposePage() {
           img.onerror = () => resolve(img);
           img.src = photoSrc;
         });
-      });
+      }
+    );
 
     Promise.all(loadedImages).then((images) => {
+      console.log("📸 Images loaded for strip, applying layers:", {
+        imageCount: images.length,
+        hasAI: !!aiGeneratedImage,
+        frameId: selectedFrame.id,
+        frameHasSrc: !!selectedFrame.src,
+      });
+
+      // First draw all original photos
       images.forEach((img, index) => {
         if (config.orientation === "vertical") {
           const y = 20 + index * (photoHeight + config.spacing);
@@ -358,42 +578,324 @@ export default function ComposePage() {
         }
       });
 
-      // Branding
-      if (config.branding) {
-        ctx.fillStyle = "#333";
-        ctx.font = "bold 16px Arial";
-        ctx.textAlign = "center" as const;
+      // Apply AI and frame in sequence
+      const applyAIAndFrame = () => {
+        if (aiGeneratedImage) {
+          console.log("🎨 Applying AI overlay to strip");
+          const aiImg = new Image();
+          aiImg.crossOrigin = "anonymous";
+          aiImg.onload = () => {
+            // Draw AI image over the entire canvas as styled version
+            ctx.drawImage(aiImg, 0, 0, canvas.width, canvas.height);
 
-        const brandingY =
-          canvas.height - (config.orientation === "vertical" ? 15 : 10);
-        ctx.fillText(config.branding, canvas.width / 2, brandingY);
-      }
+            // Apply strip background color overlay after AI
+            if (config.background && config.background !== "transparent") {
+              console.log(
+                "🌈 Applying strip background color after AI:",
+                config.background
+              );
+
+              // Create semi-transparent color overlay to show strip color
+              ctx.fillStyle = config.background;
+              ctx.globalAlpha = 0.15; // Semi-transparent to blend with AI
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+              ctx.globalAlpha = 1.0; // Reset alpha
+
+              console.log("✅ Strip background color applied successfully");
+            }
+
+            // Apply frame image if it exists (for hybrid frames)
+            if (selectedFrame.src) {
+              console.log(
+                "🖼️ Applying frame image after AI:",
+                selectedFrame.name
+              );
+              const frameImg = new Image();
+              frameImg.onload = () => {
+                ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
+                console.log("✅ Frame image applied successfully after AI");
+
+                // Add branding after frame
+                if (config.branding) {
+                  ctx.fillStyle = "#333";
+                  ctx.font = "bold 16px Arial";
+                  ctx.textAlign = "center" as const;
+                  const brandingY =
+                    canvas.height -
+                    (config.orientation === "vertical" ? 15 : 10);
+                  ctx.fillText(config.branding, canvas.width / 2, brandingY);
+                }
+              };
+              frameImg.src = selectedFrame.src;
+            } else {
+              console.log("� Adding branding after strip color overlay");
+              // Add branding after color overlay
+              if (config.branding) {
+                ctx.fillStyle = "#333";
+                ctx.font = "bold 16px Arial";
+                ctx.textAlign = "center" as const;
+                const brandingY =
+                  canvas.height - (config.orientation === "vertical" ? 15 : 10);
+                ctx.fillText(config.branding, canvas.width / 2, brandingY);
+              }
+            }
+          };
+          aiImg.src = aiGeneratedImage;
+        } else if (selectedFrame.src) {
+          // Apply frame directly if no AI
+          console.log("🖼️ Applying frame without AI:", selectedFrame.name);
+          const frameImg = new Image();
+          frameImg.onload = () => {
+            ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
+            console.log("✅ Frame applied successfully without AI");
+
+            // Add branding after frame
+            if (config.branding) {
+              ctx.fillStyle = "#333";
+              ctx.font = "bold 16px Arial";
+              ctx.textAlign = "center" as const;
+              const brandingY =
+                canvas.height - (config.orientation === "vertical" ? 15 : 10);
+              ctx.fillText(config.branding, canvas.width / 2, brandingY);
+            }
+          };
+          frameImg.src = selectedFrame.src;
+        } else {
+          // Just branding if no AI and no frame
+          console.log("📝 Applying branding only (no AI, no frame)");
+          if (config.branding) {
+            ctx.fillStyle = "#333";
+            ctx.font = "bold 16px Arial";
+            ctx.textAlign = "center" as const;
+            const brandingY =
+              canvas.height - (config.orientation === "vertical" ? 15 : 10);
+            ctx.fillText(config.branding, canvas.width / 2, brandingY);
+          }
+        }
+      };
+
+      // Execute AI and frame application
+      applyAIAndFrame();
     });
   };
-
   const drawRegularFrame = (
     ctx: CanvasRenderingContext2D,
     canvas: HTMLCanvasElement
   ) => {
-    canvas.width = 400;
-    canvas.height = 300;
+    // Get photos from various sources, similar to strip logic
+    let photos: string[] = [];
 
+    // Get original photos first, AI will be overlay
+    if (dbPhotoData && dbPhotoData.images && dbPhotoData.images.length > 0) {
+      photos = dbPhotoData.images;
+    } else if (dbPhotoData) {
+      const mainPhoto = dbPhotoData.url || selectedPhoto;
+      if (mainPhoto) {
+        photos = [mainPhoto];
+      }
+    } else {
+      // Use sessionStorage or captured photos
+      try {
+        const composePayload = sessionStorage.getItem("composePayload");
+        if (composePayload) {
+          const payload = JSON.parse(composePayload);
+          photos =
+            payload.images ||
+            capturedPhotos ||
+            (selectedPhoto ? [selectedPhoto] : []);
+        } else {
+          photos =
+            capturedPhotos.length > 0
+              ? capturedPhotos
+              : selectedPhoto
+              ? [selectedPhoto]
+              : [];
+        }
+      } catch (e) {
+        photos =
+          capturedPhotos.length > 0
+            ? capturedPhotos
+            : selectedPhoto
+            ? [selectedPhoto]
+            : [];
+      }
+    }
+
+    console.log("Drawing regular frame with photos:", {
+      photoCount: photos.length,
+      layoutInfo: layoutInfo,
+      hasAI: !!aiGeneratedImage,
+      photos: photos.map(
+        (p: string, i: number) => `${i}: ${p.substring(0, 50)}...`
+      ),
+    });
+
+    if (photos.length === 0) return;
+
+    // For multiple photos, create a layout based on layoutInfo
+    if (photos.length > 1 && layoutInfo) {
+      drawMultiPhotoLayout(ctx, canvas, photos);
+    } else {
+      // Single photo layout
+      canvas.width = 400;
+      canvas.height = 300;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const photoToUse = photos[0];
+      if (photoToUse) {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+          // Apply AI generated image as overlay if available
+          if (aiGeneratedImage) {
+            const aiImg = new Image();
+            aiImg.crossOrigin = "anonymous";
+            aiImg.onload = () => {
+              // Draw AI image over the original photo
+              ctx.drawImage(aiImg, 0, 0, canvas.width, canvas.height);
+
+              // Apply frame after AI overlay
+              if (selectedFrame.src) {
+                const frameImg = new Image();
+                frameImg.onload = () => {
+                  ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
+                };
+                frameImg.src = selectedFrame.src;
+              }
+            };
+            aiImg.src = aiGeneratedImage;
+          } else if (selectedFrame.src) {
+            // Apply frame directly if no AI
+            const frameImg = new Image();
+            frameImg.onload = () => {
+              ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
+            };
+            frameImg.src = selectedFrame.src;
+          }
+        };
+        img.src = photoToUse;
+      }
+    }
+  };
+
+  const drawMultiPhotoLayout = (
+    ctx: CanvasRenderingContext2D,
+    canvas: HTMLCanvasElement,
+    photos: string[]
+  ) => {
+    if (!layoutInfo) return;
+
+    const { shots, layout } = layoutInfo;
+    const actualPhotoCount = Math.min(photos.length, shots);
+
+    // Define layout configurations
+    const layoutConfigs: Record<string, any> = {
+      "double-vertical": {
+        canvasWidth: 400,
+        canvasHeight: 600,
+        photoSlots: [
+          { x: 50, y: 50, width: 300, height: 200 },
+          { x: 50, y: 350, width: 300, height: 200 },
+        ],
+      },
+      "double-horizontal": {
+        canvasWidth: 600,
+        canvasHeight: 400,
+        photoSlots: [
+          { x: 50, y: 100, width: 200, height: 200 },
+          { x: 350, y: 100, width: 200, height: 200 },
+        ],
+      },
+      "triple-vertical": {
+        canvasWidth: 400,
+        canvasHeight: 750,
+        photoSlots: [
+          { x: 50, y: 50, width: 300, height: 200 },
+          { x: 50, y: 275, width: 300, height: 200 },
+          { x: 50, y: 500, width: 300, height: 200 },
+        ],
+      },
+      "quad-vertical": {
+        canvasWidth: 400,
+        canvasHeight: 900,
+        photoSlots: [
+          { x: 50, y: 50, width: 300, height: 175 },
+          { x: 50, y: 250, width: 300, height: 175 },
+          { x: 50, y: 450, width: 300, height: 175 },
+          { x: 50, y: 650, width: 300, height: 175 },
+        ],
+      },
+      "quad-horizontal": {
+        canvasWidth: 800,
+        canvasHeight: 400,
+        photoSlots: [
+          { x: 50, y: 100, width: 150, height: 200 },
+          { x: 250, y: 100, width: 150, height: 200 },
+          { x: 450, y: 100, width: 150, height: 200 },
+          { x: 650, y: 100, width: 150, height: 200 },
+        ],
+      },
+    };
+
+    const config = layoutConfigs[layout] || layoutConfigs["quad-vertical"];
+
+    canvas.width = config.canvasWidth;
+    canvas.height = config.canvasHeight;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    if (selectedPhoto) {
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.onload = () => {
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        if (selectedFrame.src) {
-          const frameImg = new Image();
-          frameImg.onload = () => {
-            ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
-          };
-          frameImg.src = selectedFrame.src;
-        }
-      };
-      img.src = selectedPhoto;
+    // Fill background
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw photos
+    let loadedCount = 0;
+    const totalToLoad = actualPhotoCount;
+
+    for (let i = 0; i < actualPhotoCount; i++) {
+      const photo = photos[i];
+      const slot = config.photoSlots[i];
+
+      if (photo && slot) {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => {
+          ctx.drawImage(img, slot.x, slot.y, slot.width, slot.height);
+          loadedCount++;
+
+          // Apply AI and frame after all photos are loaded
+          if (loadedCount === totalToLoad) {
+            // Apply AI generated image as overlay if available
+            if (aiGeneratedImage) {
+              const aiImg = new Image();
+              aiImg.crossOrigin = "anonymous";
+              aiImg.onload = () => {
+                // Draw AI image over the entire canvas as styled version
+                ctx.drawImage(aiImg, 0, 0, canvas.width, canvas.height);
+
+                // Apply frame after AI overlay
+                if (selectedFrame.src) {
+                  const frameImg = new Image();
+                  frameImg.onload = () => {
+                    ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
+                  };
+                  frameImg.src = selectedFrame.src;
+                }
+              };
+              aiImg.src = aiGeneratedImage;
+            } else if (selectedFrame.src) {
+              // Apply frame directly if no AI
+              const frameImg = new Image();
+              frameImg.onload = () => {
+                ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
+              };
+              frameImg.src = selectedFrame.src;
+            }
+          }
+        };
+        img.src = photo;
+      }
     }
   };
 
@@ -415,12 +917,80 @@ export default function ComposePage() {
     return new File([blob], filename, { type: "image/png" });
   };
 
+  // === Handle frame change to prevent stacking ===
+  const handleFrameChange = (frame: Frame) => {
+    console.log("🎨 Frame change requested:", {
+      from: selectedFrame.name,
+      to: frame.name,
+      hasAI: !!aiGeneratedImage,
+      isRendering: isRendering,
+    });
+
+    // Prevent multiple simultaneous renders
+    if (isRendering) {
+      console.log("⏳ Render in progress, ignoring frame change");
+      return;
+    }
+
+    setIsRendering(true);
+
+    // Clear any pending timeouts
+    if (renderTimeoutRef.current) {
+      clearTimeout(renderTimeoutRef.current);
+    }
+
+    setSelectedFrame(frame);
+
+    // Allow render to complete before accepting new changes
+    renderTimeoutRef.current = setTimeout(() => {
+      setIsRendering(false);
+      console.log("✅ Frame change complete, ready for next change");
+    }, 100);
+
+    // DON'T reset photos - this causes duplication
+    // The canvas render function will handle frame overlay properly
+    // Keep AI generated image when changing frames
+  };
+
+  // === Remove Frame Function ===
+  const handleRemoveFrame = () => {
+    const noFrame = availableFrames.find((f) => f.id === "none");
+    if (noFrame) {
+      setSelectedFrame(noFrame);
+      // Clear AI generated image to go back to original
+      setAiGeneratedImage(null);
+    }
+  };
+
   // === Generate with AI using current preview (canvas) ===
-  const handleGenerateAI = async () => {
+  const handleGenerateAI = async (bypassFrameCheck = false) => {
     setAiErr(null);
     if (!canvasRef.current) return;
     if (!aiPrompt) {
       setAiErr("Pilih gaya AI terlebih dahulu.");
+      return;
+    }
+
+    // RULE: User must use "No Frame" before AI generation to prevent duplication
+    if (!bypassFrameCheck && selectedFrame.id !== "none") {
+      Swal.fire({
+        icon: "warning",
+        title: "Remove Frame First",
+        text: "Harap pilih 'No Frame' terlebih dahulu sebelum generate AI untuk mencegah duplikasi frame.",
+        confirmButtonText: "Auto Remove Frame",
+        showCancelButton: true,
+        cancelButtonText: "Cancel",
+      }).then((result) => {
+        if (result.isConfirmed) {
+          // Auto set to "No Frame" and retry
+          const noFrame = availableFrames.find((f) => f.id === "none");
+          if (noFrame) {
+            setSelectedFrame(noFrame);
+            // Retry AI generation after frame is removed with bypass flag
+            setTimeout(() => handleGenerateAI(true), 500);
+          }
+        }
+      });
       return;
     }
 
@@ -444,7 +1014,7 @@ export default function ComposePage() {
       }
 
       setIsGenerating(true);
-      // Ambil image dari canvas saat ini agar frame/strip ikut terkirim
+      // Use current canvas for AI generation (should be frame-free at this point)
       const imageFile = await canvasToFile(
         canvasRef.current,
         `compose-${Date.now()}.png`
@@ -470,9 +1040,19 @@ export default function ComposePage() {
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
 
-      // Ganti foto terpilih dengan hasil AI
-      setSelectedPhoto(url);
-      setActiveCategory("frame"); // kembali ke tab frame untuk lanjut styling jika mau
+      // Save AI generated image - DON'T change selectedPhoto to preserve original layout
+      setAiGeneratedImage(url);
+      // Keep selectedPhoto unchanged to maintain layout integrity
+
+      console.log("AI Generation completed:", {
+        aiImageUrl: url.substring(0, 50) + "...",
+        currentFrame: selectedFrame.id,
+        layoutInfo: layoutInfo,
+      });
+
+      // DON'T reset capturedPhotos - keep original layout structure
+      // AI result will be handled in canvas drawing logic
+
       fetchCurrentUser(); // refresh user data (token)
     } catch (error: unknown) {
       console.error(error);
@@ -518,15 +1098,34 @@ export default function ComposePage() {
     }
     setUploading(true);
     setMessage(null);
+
+    // Wait for canvas to be fully rendered
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
     try {
       const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+
+      // Get current layout info for proper data structure
+      const currentShots = layoutInfo?.shots || capturedPhotos.length || 1;
+      const currentLayout = layoutInfo?.layout || "composed";
+
       const body = {
         imageData: dataUrl as string,
         sendToWhatsapp: false, // Only save, don't send WA
         filter: "none",
-        shots: 1,
-        layout: "composed",
+        shots: currentShots,
+        layout: currentLayout,
+        skipCloudinaryUpload: false, // Ensure cloud upload for compose
       };
+
+      console.log("Saving to cloud with data:", {
+        shots: body.shots,
+        layout: body.layout,
+        imageSize: dataUrl.length,
+        hasAI: !!aiGeneratedImage,
+        frameId: selectedFrame.id,
+      });
+
       const res = await fetch("/api/photos", {
         method: "POST",
         credentials: "include",
@@ -571,21 +1170,41 @@ export default function ComposePage() {
     }
     setUploading(true);
     setMessage(null);
+
+    // Wait for canvas to be fully rendered
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
     try {
       const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+
+      // Get current layout info for proper data structure
+      const currentShots = layoutInfo?.shots || capturedPhotos.length || 1;
+      const currentLayout = layoutInfo?.layout || "composed";
+
       const body: {
         imageData: string;
         sendToWhatsapp: boolean;
         filter: string;
         shots: number;
         layout: string;
+        skipCloudinaryUpload: boolean;
       } = {
         imageData: dataUrl,
         sendToWhatsapp: true, // Request untuk share ke WhatsApp
         filter: "none",
-        shots: 1,
-        layout: "composed",
+        shots: currentShots,
+        layout: currentLayout,
+        skipCloudinaryUpload: false, // Ensure cloud upload for sharing
       };
+
+      console.log("Sharing to WhatsApp with data:", {
+        shots: body.shots,
+        layout: body.layout,
+        imageSize: dataUrl.length,
+        hasAI: !!aiGeneratedImage,
+        frameId: selectedFrame.id,
+      });
+
       const res = await fetch("/api/photos", {
         method: "POST",
         credentials: "include",
@@ -712,9 +1331,22 @@ export default function ComposePage() {
                       disabled={uploading}
                       className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-8 py-3 rounded-full font-bold text-lg transition-all shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 border-2 border-green-400 flex items-center gap-2"
                     >
-                      <span className="text-xl">�</span>
+                      <span className="text-xl">📱</span>
                       {uploading ? "Sending..." : "Share WhatsApp"}
                     </button>
+
+                    {/* Remove Frame/AI Button */}
+                    {(selectedFrame.id !== "none" || aiGeneratedImage) && (
+                      <button
+                        onClick={handleRemoveFrame}
+                        className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-6 py-3 rounded-full font-bold text-sm transition-all shadow-lg hover:shadow-xl transform hover:scale-105 border-2 border-red-400 flex items-center gap-2"
+                      >
+                        <span className="text-lg">🗑️</span>
+                        {aiGeneratedImage
+                          ? "Remove AI & Frame"
+                          : "Remove Frame"}
+                      </button>
+                    )}
                   </div>
 
                   {/* Message Alert */}
@@ -844,23 +1476,41 @@ export default function ComposePage() {
                       <div className="text-red-600 text-sm">{aiErr}</div>
                     )}
 
+                    {/* Frame Warning */}
+                    {selectedFrame.id !== "none" && (
+                      <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-yellow-600">⚠️</span>
+                          <p className="text-sm text-yellow-800 font-medium">
+                            Pilih "No Frame" terlebih dahulu sebelum generate AI
+                            untuk mencegah duplikasi frame.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
                     <button
                       disabled={!selectedPhoto || !aiPrompt || isGenerating}
-                      onClick={handleGenerateAI}
+                      onClick={() => handleGenerateAI()}
                       className={`w-full px-4 py-3 rounded-lg font-semibold border-2 transition-all shadow ${
                         isGenerating
                           ? "bg-gray-200 text-gray-600 border-gray-300 cursor-not-allowed"
+                          : selectedFrame.id !== "none"
+                          ? "bg-yellow-500 text-white border-yellow-400 hover:bg-yellow-600"
                           : "bg-gradient-to-r from-indigo-500 to-indigo-600 text-white border-indigo-400 hover:from-indigo-600 hover:to-indigo-700"
                       }`}
                     >
                       {isGenerating
                         ? "Processing…"
+                        : selectedFrame.id !== "none"
+                        ? "Remove Frame & Generate"
                         : "Generate Style from Preview"}
                     </button>
 
                     <p className="text-xs text-gray-500">
                       * Hasil AI akan menggantikan foto saat ini dan tetap bisa
-                      diberi frame/sticker lagi.
+                      diberi frame/sticker lagi. Pastikan pilih "No Frame"
+                      terlebih dahulu untuk hasil terbaik.
                     </p>
                   </div>
                 ) : (
@@ -874,7 +1524,7 @@ export default function ComposePage() {
                       .map((frame) => (
                         <button
                           key={frame.id}
-                          onClick={() => setSelectedFrame(frame)}
+                          onClick={() => handleFrameChange(frame)}
                           className={`p-4 rounded-xl border-2 transition-all transform hover:scale-105 font-medium ${
                             selectedFrame.id === frame.id
                               ? "bg-gradient-to-r from-sage-500 to-sage-600 text-white border-sage-400 shadow-lg"
