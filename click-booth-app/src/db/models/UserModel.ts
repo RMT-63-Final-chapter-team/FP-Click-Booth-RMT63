@@ -23,6 +23,52 @@ export class UserModel {
     return database.collection<UserType>("Users");
   }
 
+  static async createAdmin(userData: UserType) {
+    const { email, username, phoneNumber } = userData;
+    const existingUserByEmail = await this.findUserByEmail(email);
+    if (existingUserByEmail) {
+      throw {
+        message: "Email already exists",
+        status: 400,
+      };
+    }
+
+    const existingUserByUsername = await this.findUserByUsername(username);
+    if (existingUserByUsername) {
+      throw {
+        message: "Username already exists",
+        status: 400,
+      };
+    }
+    const existingUserByPhoneNumber = await this.findUserByPhoneNumber(
+      phoneNumber
+    );
+    if (existingUserByPhoneNumber) {
+      throw {
+        message: "Phone number already exists",
+        status: 400,
+      };
+    }
+    const hashedPassword = hashPassword(userData.password);
+    userData.password = hashedPassword;
+    const result = await this.collection().insertOne({
+      ...userData,
+      tokens: 1,
+      role: "admin",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    if (!result.acknowledged) {
+      throw {
+        message: "Failed to create admin user",
+        status: 500,
+      };
+    }
+    return {
+      username: userData.username,
+    };
+  }
+
   static async createUser(userData: UserType) {
     UserSchema.parse(userData);
 
