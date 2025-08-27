@@ -79,7 +79,7 @@ export default function Navbar() {
     { name: "Home", link: "/", icon: <Home className="w-4 h-4 mr-1" /> },
     {
       name: "Booth",
-      link: "/booth",
+      link: "/layout-selection",
       icon: <Camera className="w-4 h-4 mr-1" />,
     },
     {
@@ -113,7 +113,7 @@ export default function Navbar() {
                 className="object-contain"
               />
             </div>
-            <div className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full font-medium">
+            <div className="text-xs text-slate-800 px-2 py-1 font-medium">
               <span className="font-bold text-slate-800">
                 Click<span className="text-red-500">Booth</span>
               </span>
@@ -142,7 +142,7 @@ export default function Navbar() {
             {user ? (
               <>
                 {/* Token Display */}
-                <div className="flex items-center space-x-2 bg-amber-100 text-amber-700 px-3 py-1.5 rounded-full border border-amber-200">
+                <div className="flex items-center space-x-2 bg-white/10 backdrop-blur-sm text-slate-700 px-3 py-1.5 rounded-full border border-slate-200">
                   <Gem className="w-4 h-4 text-red-500" />
                   <span className="font-bold text-sm">{userTokens}</span>
                   <span className="text-xs">tokens</span>
@@ -209,7 +209,7 @@ export default function Navbar() {
             {/* Mobile User Info */}
             <div className="flex items-center space-x-3">
               {user && (
-                <div className="flex items-center space-x-2 bg-amber-100 text-amber-700 px-2 py-1 rounded-full border border-amber-200">
+                <div className="flex items-center space-x-2 bg-white/10 backdrop-blur-sm text-slate-700 px-2 py-1 rounded-full border border-slate-200">
                   <Gem className="w-3 h-3 text-red-500" />
                   <span className="font-bold text-xs">{userTokens}</span>
                 </div>
@@ -222,7 +222,7 @@ export default function Navbar() {
           </MobileNavHeader>
 
           {/* Mobile Menu */}
-          <MobileNavMenu isOpen={isOpen} onClose={() => setIsOpen(false)}>
+          <MobileNavMenu isOpen={isOpen}>
             {/* Mobile Navigation Links */}
             <div className="flex flex-col space-y-4 w-full">
               {navItems.map((item, idx) => (

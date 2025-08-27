@@ -78,11 +78,11 @@ export default function Home() {
   ];
 
   return (
-    <div className="bg-gradient-to-br from-slate-50 via-white to-amber-50/30 text-slate-900 overflow-hidden">
+    <div className="bg-white text-slate-900 overflow-hidden">
       {/* Hero Section */}
-      <BackgroundLines className="relative overflow-hidden min-h-screen bg-gradient-to-br from-slate-50 via-white to-amber-50/30">
-        <div className="absolute inset-0 z-0">
-          <BoxesCore className="w-full h-full opacity-20" />
+      <BackgroundLines className="relative overflow-hidden min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100">
+        <div className="absolute inset-0 z-0 -top-4">
+          <BoxesCore className="w-full h-[calc(100%+1rem)] opacity-20" />
         </div>
         <div className="relative z-10 flex flex-col items-center justify-center min-h-screen px-6 text-center container mx-auto max-w-6xl">
           <motion.div
@@ -98,16 +98,16 @@ export default function Home() {
               </span>
             </div>
 
-            <h1 className="text-5xl md:text-7xl font-black tracking-tight text-balance bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 bg-clip-text text-transparent leading-[1.1]">
+            <h1 className="text-5xl md:text-7xl font-black tracking-tight text-balance bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 bg-clip-text text-transparent leading-[1.1] text-center">
               Professional Photo Booth with{" "}
               <span className="bg-gradient-to-r from-red-600 to-red-500 bg-clip-text text-transparent">
                 AI
               </span>{" "}
               Precision
             </h1>
-            <p className="mt-6 md:mt-8 text-lg md:text-xl text-slate-600 max-w-3xl mx-auto leading-relaxed font-light">
+            <p className="mt-6 md:mt-8 text-lg md:text-xl text-slate-600 max-w-3xl mx-auto leading-relaxed font-light text-center">
               Experience premium photo results, AI-powered filters, and instant
-              sharing—crafted for modern events and brands with unmatched
+              sharing-crafted for modern events and brands with unmatched
               quality.
             </p>
 
@@ -247,11 +247,9 @@ export default function Home() {
                     <Palette className="w-4 h-4 text-red-600" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-lg mb-2">
-                      Advanced Filters
-                    </h3>
+                    <h3 className="font-semibold text-lg mb-2">Filters</h3>
                     <p className="text-slate-600">
-                      Choose from 10+ premium filters designed by professional
+                      Choose from 8+ filters designed by professional
                       photographers for every occasion.
                     </p>
                   </div>
@@ -306,7 +304,7 @@ export default function Home() {
             </p>
           </motion.div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-12">
             {plans.map((plan, index) => (
               <motion.div
                 key={index}
@@ -318,10 +316,10 @@ export default function Home() {
                   plan.popular
                     ? "border-red-500/20 bg-gradient-to-br from-white via-red-50/30 to-white shadow-red-500/10"
                     : "border-slate-200/50 hover:border-slate-300/50"
-                } overflow-hidden`}
+                } overflow-visible`}
               >
                 {plan.popular && (
-                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-20">
+                  <div className="absolute -top-5 left-1/2 -translate-x-1/2 z-20">
                     <div className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-red-500 to-red-600 px-4 py-2 text-sm font-bold text-white shadow-lg shadow-red-500/25">
                       <Star className="w-4 h-4 fill-white" />
                       Most Popular
@@ -331,7 +329,11 @@ export default function Home() {
 
                 <div className="absolute inset-0 bg-gradient-to-br from-transparent via-slate-50/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
 
-                <div className="relative z-10 p-8">
+                <div
+                  className={`relative z-10 p-8 ${
+                    plan.popular ? "pt-12" : "pt-8"
+                  }`}
+                >
                   <div className="text-center mb-8">
                     <h3 className="text-2xl font-bold text-slate-900 mb-2">
                       {plan.name}
@@ -362,17 +364,6 @@ export default function Home() {
                       </li>
                     ))}
                   </ul>
-
-                  <Link
-                    href="/payment"
-                    className={`block w-full text-center px-6 py-4 rounded-2xl font-bold transition-all duration-300 ${
-                      plan.popular
-                        ? "bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg shadow-red-500/25 hover:shadow-xl hover:shadow-red-500/40 hover:-translate-y-0.5"
-                        : "bg-gradient-to-r from-slate-100 to-slate-200 text-slate-900 hover:from-slate-200 hover:to-slate-300 hover:shadow-lg"
-                    }`}
-                  >
-                    Get Started
-                  </Link>
                 </div>
               </motion.div>
             ))}
