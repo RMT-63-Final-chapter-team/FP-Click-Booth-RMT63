@@ -83,8 +83,8 @@ export default function Navbar() {
       icon: <Camera className="w-4 h-4 mr-1" />,
     },
     {
-      name: "Gallery",
-      link: "/photos",
+      name: "Profile",
+      link: "/profile",
       icon: <ImageIcon className="w-4 h-4 mr-1" />,
     },
     {
