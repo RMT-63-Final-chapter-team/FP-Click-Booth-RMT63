@@ -14,6 +14,7 @@ export type NewPhotoInput = {
   filter?: string;
   shots?: number;
   layout?: string | null;
+  images?: string[]; // Individual photos before composing
 };
 
 export type UploadBody = {
@@ -27,6 +28,8 @@ export type UploadBody = {
   filter?: string | null;
   shots?: number | null;
   layout?: string | null;
+  images?: string[]; // Individual photos before composing
+  skipCloudinaryUpload?: boolean; // Flag to skip Cloudinary upload for booth photos
 };
 
 export interface UserType {
@@ -84,6 +87,7 @@ export interface Photo {
   filter?: string | null;
   shots?: number | null;
   layout?: string | null;
+  images?: string[]; // Individual photos before composing
   createdAt: Date;
   updatedAt?: Date;
 }
@@ -102,6 +106,7 @@ export interface PhotoDoc {
   filter?: string | null;
   shots?: number | null;
   layout?: string | null;
+  images?: string[]; // Individual photos before composing
   createdAt: Date;
   updatedAt?: Date;
 }
