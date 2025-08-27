@@ -821,7 +821,7 @@ export default function ComposePage() {
                             }`}
                           >
                             <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0">
-                              <NextImage
+                              <img
                                 src={ai.icon}
                                 alt={ai.name}
                                 className="w-full h-full object-cover"
