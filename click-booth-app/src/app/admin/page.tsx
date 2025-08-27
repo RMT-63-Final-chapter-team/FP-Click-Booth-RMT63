@@ -28,6 +28,16 @@ export default function AdminPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [isAddModalClosing, setIsAddModalClosing] = useState(false);
   const [isAddModalOpening, setIsAddModalOpening] = useState(false);
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [password, setPassword] = useState("");
+
+  // Add Admin Modal states
+  const [showAddAdminModal, setShowAddAdminModal] = useState(false);
+  const [isAddAdminModalClosing, setIsAddAdminModalClosing] = useState(false);
+  const [isAddAdminModalOpening, setIsAddAdminModalOpening] = useState(false);
 
   const route = useRouter();
 
@@ -347,6 +357,101 @@ export default function AdminPage() {
     }, 300);
   };
 
+  const openAddAdminModal = () => {
+    setIsAddAdminModalOpening(true);
+    setShowAddAdminModal(true);
+    // Trigger opening animation
+    setTimeout(() => {
+      setIsAddAdminModalOpening(false);
+    }, 50);
+  };
+
+  const closeAddAdminModal = () => {
+    setIsAddAdminModalClosing(true);
+    setTimeout(() => {
+      setShowAddAdminModal(false);
+      setFullName("");
+      setEmail("");
+      setUsername("");
+      setPhoneNumber("");
+      setPassword("");
+      setIsAddAdminModalClosing(false);
+      setIsAddAdminModalOpening(false);
+    }, 300);
+  };
+
+  const handleAddAdmin = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    // Validate all fields are filled
+    if (!fullName || !email || !username || !phoneNumber || !password) {
+      Swal.fire({
+        title: "Validation Error",
+        text: "Please fill all fields",
+        icon: "warning",
+        confirmButtonColor: "#D85C3A",
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      console.log("Adding admin with data:", {
+        username,
+        phoneNumber,
+        fullName,
+        email,
+        password,
+      });
+
+      const response = await fetch("/api/admin/addadmin", {
+        method: "POST",
+        body: JSON.stringify({
+          username,
+          phoneNumber,
+          fullName,
+          email,
+          password,
+        }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to add admin");
+      }
+
+      const data = await response.json();
+      console.log("Admin added successfully:", data);
+
+      // Show success message
+      Swal.fire({
+        title: "Success!",
+        text: "Admin has been added successfully!",
+        icon: "success",
+        confirmButtonColor: "#D85C3A",
+      });
+
+      // Close modal and reset form
+      closeAddAdminModal();
+    } catch (error) {
+      console.error("Error adding admin:", error);
+      Swal.fire({
+        title: "Error!",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Failed to add admin. Please try again.",
+        icon: "error",
+        confirmButtonColor: "#D85C3A",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-cream-50 to-cream-100">
       {/* Header */}
@@ -421,25 +526,46 @@ export default function AdminPage() {
                 Manage your AI transformation styles
               </p>
             </div>
-            <button
-              onClick={openAddModal}
-              className="bg-white hover:bg-gray-100 text-black px-6 py-3 rounded-lg font-semibold transition-all transform hover:scale-105 hover:shadow-lg active:scale-95 flex items-center border border-black"
-            >
-              <svg
-                className="w-5 h-5 mr-2"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+            <div className="flex space-x-3">
+              <button
+                onClick={openAddAdminModal}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-all transform hover:scale-105 hover:shadow-lg active:scale-95 flex items-center"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                />
-              </svg>
-              Add New Style
-            </button>
+                <svg
+                  className="w-5 h-5 mr-2"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                  />
+                </svg>
+                Add Admin
+              </button>
+              <button
+                onClick={openAddModal}
+                className="bg-white hover:bg-gray-100 text-black px-6 py-3 rounded-lg font-semibold transition-all transform hover:scale-105 hover:shadow-lg active:scale-95 flex items-center border border-black"
+              >
+                <svg
+                  className="w-5 h-5 mr-2"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                  />
+                </svg>
+                Add New Style
+              </button>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -693,7 +819,7 @@ export default function AdminPage() {
                   >
                     {loading ? (
                       <div className="flex items-center">
-                        <div className="w-5 h-5 border-2 border-black border-2 rounded-full animate-spin mr-2"></div>
+                        <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin mr-2"></div>
                         Uploading...
                       </div>
                     ) : (
@@ -712,6 +838,231 @@ export default function AdminPage() {
                           />
                         </svg>
                         Add AI Style
+                      </div>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Add Admin Modal */}
+        {showAddAdminModal && (
+          <div
+            className={`fixed inset-0 bg-charcoal-900 bg-opacity-50 backdrop-blur-sm flex items-center justify-center p-4 z-50 transition-all duration-300 ease-out ${
+              isAddAdminModalClosing ? "opacity-0" : "opacity-100"
+            }`}
+          >
+            <div
+              className={`bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-cream-200 transition-all duration-300 ease-out transform ${
+                isAddAdminModalClosing
+                  ? "scale-95 translate-y-4 opacity-0"
+                  : isAddAdminModalOpening
+                  ? "scale-95 translate-y-4 opacity-0"
+                  : "scale-100 translate-y-0 opacity-100"
+              }`}
+            >
+              {/* Modal Header */}
+              <div className="px-6 py-4 border-b border-cream-200 bg-blue-50 rounded-t-2xl">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <div className="w-12 h-12 rounded-xl bg-blue-100 border border-blue-200 flex items-center justify-center mr-4">
+                      <svg
+                        className="w-6 h-6 text-blue-600"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                        />
+                      </svg>
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-charcoal-900">
+                        Add New Admin
+                      </h2>
+                      <p className="text-sm text-charcoal-600">
+                        Create a new admin account
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={closeAddAdminModal}
+                    className="text-charcoal-400 hover:text-charcoal-600 p-2 rounded-lg hover:bg-cream-100 transition-colors"
+                  >
+                    <svg
+                      className="w-6 h-6"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Content */}
+              <form
+                onSubmit={handleAddAdmin}
+                className={`p-6 space-y-6 relative ${
+                  loading ? "pointer-events-none opacity-75" : ""
+                }`}
+              >
+                {loading && (
+                  <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center rounded-b-2xl z-10">
+                    <div className="text-center">
+                      <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
+                      <p className="text-charcoal-700 font-medium">
+                        Creating admin account...
+                      </p>
+                      <p className="text-charcoal-500 text-sm">
+                        Please wait while we process your request
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-semibold text-charcoal-700 mb-2">
+                      Full Name
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Enter admin's full name"
+                      className="w-full px-4 py-3 border border-cream-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white text-charcoal-900 placeholder-charcoal-400"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      disabled={loading}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-charcoal-700 mb-2">
+                      Username
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Enter username"
+                      className="w-full px-4 py-3 border border-cream-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white text-charcoal-900 placeholder-charcoal-400"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      disabled={loading}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-charcoal-700 mb-2">
+                      Email Address
+                    </label>
+                    <input
+                      type="email"
+                      placeholder="Enter email address"
+                      className="w-full px-4 py-3 border border-cream-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white text-charcoal-900 placeholder-charcoal-400"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      disabled={loading}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-charcoal-700 mb-2">
+                      Phone Number
+                    </label>
+                    <input
+                      type="tel"
+                      placeholder="Enter phone number"
+                      className="w-full px-4 py-3 border border-cream-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white text-charcoal-900 placeholder-charcoal-400"
+                      value={phoneNumber}
+                      onChange={(e) => setPhoneNumber(e.target.value)}
+                      disabled={loading}
+                      required
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-semibold text-charcoal-700 mb-2">
+                      Password
+                    </label>
+                    <input
+                      type="password"
+                      placeholder="Enter secure password (min. 8 characters)"
+                      className="w-full px-4 py-3 border border-cream-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white text-charcoal-900 placeholder-charcoal-400"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      disabled={loading}
+                      required
+                      minLength={8}
+                    />
+                  </div>
+                </div>
+
+                {/* Modal Footer */}
+                <div className="flex justify-end pt-4 border-t border-cream-200 space-x-3">
+                  <button
+                    type="button"
+                    onClick={closeAddAdminModal}
+                    className="px-6 py-3 text-charcoal-700 bg-white hover:bg-cream-100 border border-cream-300 rounded-lg font-medium transition-colors"
+                    disabled={loading}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={
+                      loading ||
+                      !fullName ||
+                      !email ||
+                      !username ||
+                      !phoneNumber ||
+                      !password
+                    }
+                    className={`px-8 py-3 rounded-lg font-semibold transition-all transform ${
+                      loading ||
+                      !fullName ||
+                      !email ||
+                      !username ||
+                      !phoneNumber ||
+                      !password
+                        ? "bg-charcoal-300 text-charcoal-500 cursor-not-allowed"
+                        : "bg-blue-600 hover:bg-blue-700 text-white hover:shadow-lg hover:scale-105 active:scale-95"
+                    }`}
+                  >
+                    {loading ? (
+                      <div className="flex items-center">
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                        Creating...
+                      </div>
+                    ) : (
+                      <div className="flex items-center">
+                        <svg
+                          className="w-5 h-5 mr-2"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                          />
+                        </svg>
+                        Create Admin
                       </div>
                     )}
                   </button>

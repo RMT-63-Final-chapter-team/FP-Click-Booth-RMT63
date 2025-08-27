@@ -24,6 +24,7 @@ export class UserModel {
   }
 
   static async createAdmin(userData: UserType) {
+    UserSchema.parse(userData);
     const { email, username, phoneNumber } = userData;
     const existingUserByEmail = await this.findUserByEmail(email);
     if (existingUserByEmail) {
