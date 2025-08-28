@@ -2,6 +2,7 @@
 // import React, { ReactNode } from "react";
 import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
+import { useState, useEffect } from "react";
 
 export const BoxesCore = ({
   className,
@@ -11,6 +12,12 @@ export const BoxesCore = ({
   className?: string;
   //   children?: ReactNode;
 }) => {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const rows = new Array(100).fill(1);
   const cols = new Array(90).fill(1);
   const colors = [
@@ -24,7 +31,9 @@ export const BoxesCore = ({
     "#a5b4fc",
     "#c4b5fd",
   ];
+
   const getRandomColor = () => {
+    if (!mounted) return colors[0]; // Return consistent color during SSR
     return colors[Math.floor(Math.random() * colors.length)];
   };
 

@@ -52,7 +52,7 @@ export default function PaymentPage() {
           : "50 tokens with premium templates and unlimited downloads",
       popular: id === "pro", // contoh: jadikan Pro sebagai popular
       color:
-        id === "basic" ? "slate-600" : id === "pro" ? "red-500" : "amber-500",
+        id === "basic" ? "slate-600" : id === "pro" ? "blue-600" : "indigo-600",
     };
   });
 
@@ -213,20 +213,20 @@ export default function PaymentPage() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
-      className="min-h-screen bg-gradient-to-br from-amber-50 via-white to-red-50 relative overflow-hidden"
+      className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-blue-50 relative overflow-hidden pt-20"
     >
       {/* Background Decoration */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-amber-200/30 to-red-200/30 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-br from-red-200/30 to-amber-200/30 rounded-full blur-3xl" />
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-gradient-to-br from-amber-100/20 to-red-100/20 rounded-full blur-3xl" />
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-blue-200/20 to-indigo-200/20 rounded-full blur-3xl" />
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-br from-indigo-200/20 to-blue-200/20 rounded-full blur-3xl" />
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-gradient-to-br from-slate-100/30 to-blue-100/30 rounded-full blur-3xl" />
       </div>
       {/* Header */}
       <motion.div
         initial={{ y: -50, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.6, delay: 0.1 }}
-        className="bg-gradient-to-br from-amber-600 via-amber-500 to-red-500 relative overflow-hidden"
+        className="bg-gradient-to-br from-slate-800 via-slate-700 to-gray-800 relative overflow-hidden"
       >
         {/* Background Pattern */}
         <div className="absolute inset-0 opacity-10">
@@ -235,7 +235,7 @@ export default function PaymentPage() {
           <div className="absolute bottom-0 left-1/3 w-24 h-24 bg-white rounded-full translate-y-12" />
         </div>
 
-        <div className="container py-16 relative z-10 ">
+        <div className="max-w-7xl mx-auto px-6 py-16 relative z-10">
           <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -246,9 +246,9 @@ export default function PaymentPage() {
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ duration: 0.6, delay: 0.3 }}
-              className="inline-flex items-center justify-center w-20 h-20 bg-white/20 backdrop-blur-sm rounded-2xl mb-6"
+              className="inline-flex items-center justify-center w-20 h-20 bg-white/10 backdrop-blur-sm rounded-2xl mb-6 border border-white/20"
             >
-              <span className="text-4xl text-slate-700">
+              <span className="text-4xl text-blue-400">
                 <Gem className="w-8 h-8 inline-block" />
               </span>
             </motion.div>
@@ -275,13 +275,13 @@ export default function PaymentPage() {
         </div>
       </motion.div>
 
-      <div className="container py-12 relative z-10">
+      <div className="max-w-7xl mx-auto px-6 py-12 relative z-10 flex flex-col items-center">
         {/* Package Selection */}
         <motion.div
           initial={{ y: 50, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.8, delay: 0.4 }}
-          className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12 max-w-4xl mx-auto pt-8"
+          className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12 w-full max-w-5xl items-stretch"
         >
           {packages.map((pkg, index) => (
             <motion.div
@@ -296,16 +296,16 @@ export default function PaymentPage() {
               }}
               whileTap={{ scale: 0.98 }}
               onClick={() => handlePackageSelect(pkg)}
-              className={`relative bg-white rounded-2xl shadow-xl border cursor-pointer transition-all duration-300 ${
+              className={`relative bg-white rounded-2xl shadow-xl border cursor-pointer transition-all duration-300 h-full flex flex-col ${
                 selectedPackage === pkg.id
-                  ? "border-red-500 ring-4 ring-red-500/20 shadow-2xl"
-                  : "border-amber-200 hover:border-red-300 hover:shadow-2xl"
+                  ? "border-blue-500 ring-4 ring-blue-500/20 shadow-2xl"
+                  : "border-gray-200 hover:border-blue-300 hover:shadow-2xl"
               }`}
             >
               <div
                 className={`${
                   pkg.popular ? "pt-8 pb-6 px-6" : "p-6"
-                } text-center relative`}
+                } text-center relative flex flex-col h-full`}
               >
                 {pkg.popular && (
                   <motion.div
@@ -314,7 +314,7 @@ export default function PaymentPage() {
                     transition={{ duration: 0.5, delay: 0.8 + index * 0.1 }}
                     className="absolute -top-5 left-1/2 transform -translate-x-1/2 z-20"
                   >
-                    <div className="bg-gradient-to-r from-red-500 to-red-600 text-white px-3 py-1.5 rounded-full text-xs font-semibold shadow-lg whitespace-nowrap border-2 border-white flex items-center gap-1">
+                    <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-3 py-1.5 rounded-full text-xs font-semibold shadow-lg whitespace-nowrap border-2 border-white flex items-center gap-1">
                       <Flame className="w-4 h-4" />
                       Most Popular
                     </div>
@@ -329,8 +329,8 @@ export default function PaymentPage() {
                     pkg.id === "basic"
                       ? "bg-slate-600"
                       : pkg.id === "pro"
-                      ? "bg-red-500"
-                      : "bg-amber-500"
+                      ? "bg-blue-600"
+                      : "bg-slate-600"
                   }`}
                 >
                   <span className="text-xl font-bold text-white">
@@ -362,7 +362,7 @@ export default function PaymentPage() {
                   transition={{ duration: 0.5, delay: 1.0 + index * 0.1 }}
                   className="mb-4"
                 >
-                  <div className="text-2xl font-bold text-red-600 mb-1">
+                  <div className="text-2xl font-bold text-blue-600 mb-1">
                     Rp {pkg.price.toLocaleString("id-ID")}
                   </div>
                   <div className="text-sm text-slate-500">
@@ -376,12 +376,12 @@ export default function PaymentPage() {
                   initial={{ y: 20, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   transition={{ duration: 0.5, delay: 1.1 + index * 0.1 }}
-                  className="space-y-2 mb-4"
+                  className="space-y-2 mb-4 flex-grow"
                 >
                   <div className="flex items-center space-x-3">
                     <motion.div
                       whileHover={{ scale: 1.2 }}
-                      className="w-3 h-3 bg-red-500 rounded-full"
+                      className="w-3 h-3 bg-blue-500 rounded-full"
                     ></motion.div>
                     <span className="text-slate-600 font-medium text-sm">
                       {pkg.tokens} Tokens included
@@ -390,7 +390,7 @@ export default function PaymentPage() {
                   <div className="flex items-center space-x-3">
                     <motion.div
                       whileHover={{ scale: 1.2 }}
-                      className="w-3 h-3 bg-red-500 rounded-full"
+                      className="w-3 h-3 bg-blue-500 rounded-full"
                     ></motion.div>
                     <span className="text-slate-600 font-medium text-sm">
                       Premium photo filters
@@ -399,7 +399,7 @@ export default function PaymentPage() {
                   <div className="flex items-center space-x-3">
                     <motion.div
                       whileHover={{ scale: 1.2 }}
-                      className="w-3 h-3 bg-red-500 rounded-full"
+                      className="w-3 h-3 bg-blue-500 rounded-full"
                     ></motion.div>
                     <span className="text-slate-600 font-medium text-sm">
                       WhatsApp sharing
@@ -409,7 +409,7 @@ export default function PaymentPage() {
                     <div className="flex items-center space-x-3">
                       <motion.div
                         whileHover={{ scale: 1.2 }}
-                        className="w-3 h-3 bg-red-500 rounded-full"
+                        className="w-3 h-3 bg-blue-500 rounded-full"
                       ></motion.div>
                       <span className="text-slate-600 font-medium text-sm">
                         Advanced editing tools
@@ -420,7 +420,7 @@ export default function PaymentPage() {
                     <div className="flex items-center space-x-3">
                       <motion.div
                         whileHover={{ scale: 1.2 }}
-                        className="w-3 h-3 bg-red-500 rounded-full"
+                        className="w-3 h-3 bg-blue-500 rounded-full"
                       ></motion.div>
                       <span className="text-slate-600 font-medium text-sm">
                         Unlimited downloads
@@ -434,15 +434,15 @@ export default function PaymentPage() {
                   initial={{ y: 20, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   transition={{ duration: 0.5, delay: 1.2 + index * 0.1 }}
-                  className="mt-4"
+                  className="mt-auto pt-4"
                 >
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     className={`w-full py-3 px-6 rounded-xl font-semibold transition-all duration-300 ${
                       pkg.popular
-                        ? "bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-lg"
-                        : "bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white shadow-lg"
+                        ? "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg"
+                        : "bg-gradient-to-r from-slate-600 to-gray-600 hover:from-slate-700 hover:to-gray-700 text-white shadow-lg"
                     }`}
                   >
                     Choose Package
@@ -458,7 +458,7 @@ export default function PaymentPage() {
           initial={{ y: 50, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.8, delay: 1.7 }}
-          className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-3xl p-10 border border-amber-200 shadow-xl"
+          className="bg-gradient-to-br from-slate-50 to-gray-100 rounded-3xl p-10 border border-gray-200 shadow-xl w-full max-w-5xl"
         >
           <motion.h3
             initial={{ y: 20, opacity: 0 }}
@@ -479,7 +479,7 @@ export default function PaymentPage() {
               <motion.div
                 whileHover={{ scale: 1.1, rotate: 5 }}
                 whileTap={{ scale: 0.95 }}
-                className="bg-gradient-to-br from-red-500 to-red-600 text-white w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg"
+                className="bg-gradient-to-br from-blue-600 to-indigo-600 text-white w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg"
               >
                 <span className="text-2xl">🛡️</span>
               </motion.div>
@@ -500,7 +500,7 @@ export default function PaymentPage() {
               <motion.div
                 whileHover={{ scale: 1.1, rotate: -5 }}
                 whileTap={{ scale: 0.95 }}
-                className="bg-gradient-to-br from-amber-500 to-amber-600 text-white w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg"
+                className="bg-gradient-to-br from-slate-600 to-gray-600 text-white w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg"
               >
                 <span className="text-2xl">🏦</span>
               </motion.div>
@@ -521,7 +521,7 @@ export default function PaymentPage() {
               <motion.div
                 whileHover={{ scale: 1.1, rotate: 5 }}
                 whileTap={{ scale: 0.95 }}
-                className="bg-gradient-to-br from-slate-600 to-slate-700 text-white w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg"
+                className="bg-gradient-to-br from-indigo-600 to-purple-600 text-white w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg"
               >
                 <span className="text-2xl">⚡</span>
               </motion.div>
@@ -563,7 +563,7 @@ export default function PaymentPage() {
                   transition={{ delay: 0.1 }}
                   className="flex items-center gap-3"
                 >
-                  <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-red-500 rounded-xl flex items-center justify-center">
+                  <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center">
                     <CreditCard className="w-5 h-5 text-white" />
                   </div>
                   <h3 className="text-2xl font-bold text-slate-800">
@@ -590,17 +590,17 @@ export default function PaymentPage() {
                   initial={{ y: 20, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   transition={{ delay: 0.2 }}
-                  className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-2xl p-6 mb-6 border border-amber-200"
+                  className="bg-gradient-to-br from-slate-50 to-gray-100 rounded-2xl p-6 mb-6 border border-gray-200"
                 >
                   <div className="flex items-center gap-4 mb-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-red-500 rounded-xl flex items-center justify-center">
+                    <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center">
                       <Gem className="w-6 h-6 text-white" />
                     </div>
                     <div>
                       <h4 className="text-xl font-bold text-slate-800">
                         {selectedPkg.name}
                       </h4>
-                      <p className="text-amber-600 font-medium">
+                      <p className="text-blue-600 font-medium">
                         {selectedPkg.tokens} Tokens
                       </p>
                     </div>
@@ -622,12 +622,12 @@ export default function PaymentPage() {
                         ).toLocaleString("id-ID")}
                       </span>
                     </div>
-                    <div className="border-t border-amber-200 pt-2 mt-3">
+                    <div className="border-t border-gray-200 pt-2 mt-3">
                       <div className="flex justify-between items-center">
                         <span className="font-semibold text-slate-800">
                           Total:
                         </span>
-                        <span className="text-2xl font-bold text-red-600">
+                        <span className="text-2xl font-bold text-blue-600">
                           Rp {selectedPkg.price.toLocaleString("id-ID")}
                         </span>
                       </div>
@@ -645,7 +645,7 @@ export default function PaymentPage() {
                 whileTap={{ scale: 0.98 }}
                 onClick={handlePay}
                 disabled={loading || verifyingPayment}
-                className="w-full bg-gradient-to-r from-amber-500 to-red-500 hover:from-amber-600 hover:to-red-600 text-white font-bold py-4 px-6 rounded-2xl shadow-lg transition-all duration-300 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold py-4 px-6 rounded-2xl shadow-lg transition-all duration-300 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? (
                   <>

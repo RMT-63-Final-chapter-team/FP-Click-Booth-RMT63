@@ -215,9 +215,9 @@ export default function Home() {
             {/* Left side - Compare component */}
             <div className="flex-1 flex justify-center">
               <Compare
-                firstImage="/fred2.png"
-                secondImage="/gibli2.png"
-                className="w-[400px] h-[400px] rounded-2xl shadow-xl"
+                firstImage="/artis.jpg"
+                secondImage="/artis.png"
+                className="w-[500px] h-[400px] rounded-2xl shadow-xl"
                 slideMode="hover"
                 autoplay={true}
                 autoplayDuration={3000}

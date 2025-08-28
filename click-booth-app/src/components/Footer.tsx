@@ -1,7 +1,7 @@
 import Link from "next/link";
+import Image from "next/image";
 import { motion } from "motion/react";
 import {
-  Camera,
   // Mail,
   // Phone,
   // MapPin,
@@ -31,8 +31,8 @@ export default function Footer() {
       <div className="relative z-10">
         {/* Top Section */}
         <div className="border-b border-slate-200">
-          <div className="container mx-auto max-w-6xl px-6 py-16">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+          <div className="container mx-auto max-w-6xl px-6 py-12">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Company Info */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -41,9 +41,15 @@ export default function Footer() {
                 viewport={{ once: true }}
                 className="lg:col-span-2"
               >
-                <div className="flex items-center space-x-3 mb-6">
-                  <div className="w-12 h-12 bg-red-600 rounded-2xl flex items-center justify-center shadow-lg">
-                    <Camera className="w-6 h-6 text-white" />
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-lg border border-slate-200">
+                    <Image
+                      src="/logonobg.png"
+                      alt="ClickBooth Logo"
+                      width={32}
+                      height={32}
+                      className="object-contain"
+                    />
                   </div>
                   <div>
                     <h3 className="text-2xl font-bold text-slate-900">
@@ -54,7 +60,7 @@ export default function Footer() {
                     </p>
                   </div>
                 </div>
-                <p className="text-slate-600 leading-relaxed mb-8 max-w-lg">
+                <p className="text-slate-600 leading-relaxed mb-6 max-w-lg">
                   Creating unforgettable moments through innovative photo booth
                   experiences. Professional quality meets creative fun with
                   AI-powered enhancement.
@@ -94,7 +100,7 @@ export default function Footer() {
                 viewport={{ once: true }}
                 className="lg:col-span-1"
               >
-                <h4 className="text-lg font-semibold mb-6 text-slate-800">
+                <h4 className="text-lg font-semibold mb-4 text-slate-800">
                   Documentation
                 </h4>
                 <Link
@@ -119,8 +125,8 @@ export default function Footer() {
         </div>
 
         {/* Bottom Section */}
-        <div className="container mx-auto max-w-6xl px-6 py-8">
-          <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
+        <div className="container mx-auto max-w-6xl px-6 py-6">
+          <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
             {/* Copyright */}
             <motion.div
               initial={{ opacity: 0 }}
@@ -156,9 +162,9 @@ export default function Footer() {
 
         {/* Extra Info Bar */}
         <div className="border-t border-slate-200 bg-slate-50">
-          <div className="container mx-auto max-w-6xl px-6 py-4">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-600">
-              <div className="flex items-center space-x-6">
+          <div className="container mx-auto max-w-6xl px-6 py-3">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+              <div className="flex items-center space-x-4">
                 <div className="flex items-center space-x-2">
                   <Globe className="w-3 h-3 text-red-500" />
                   <span>Available Worldwide</span>

@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { QRCodeCanvas } from "qrcode.react";
 import { AiType, UserType } from "@/type";
+import { dispatchTokenUpdate } from "@/helpers/tokenUpdateHelper";
 import Swal from "sweetalert2";
 import Image from "next/image";
 import {
@@ -301,6 +302,7 @@ export default function ComposePage() {
       console.log("Loading from sessionStorage");
       const savedPhotos = sessionStorage.getItem("capturedPhotos");
       const savedLayout = sessionStorage.getItem("selectedLayout");
+      console.log("Saved Photos:", savedPhotos);
       const composePayload = sessionStorage.getItem("composePayload");
 
       if (composePayload) {
@@ -392,6 +394,11 @@ export default function ComposePage() {
       const response = await fetch("/api/me");
       const userData = await response.json();
       setCurrentUser(userData);
+
+      // Dispatch token update event with current tokens
+      if (userData && typeof userData.tokens === "number") {
+        dispatchTokenUpdate(userData.tokens);
+      }
     } catch (error) {
       console.error("Error fetching current user:", error);
     }
@@ -497,7 +504,6 @@ export default function ComposePage() {
       drawRegularFrame(ctx, canvas);
     }
   };
-
   const drawPhotoboothStrip = (
     ctx: CanvasRenderingContext2D,
     canvas: HTMLCanvasElement
@@ -603,6 +609,47 @@ export default function ComposePage() {
     ctx.fillStyle = config.background;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+    // Helper function to draw image proportionally (cover mode)
+    const drawImageProportional = (
+      img: HTMLImageElement,
+      x: number,
+      y: number,
+      width: number,
+      height: number,
+      ctx: CanvasRenderingContext2D
+    ) => {
+      const imgAspect = img.width / img.height;
+      const slotAspect = width / height;
+
+      let sourceX = 0;
+      let sourceY = 0;
+      let sourceWidth = img.width;
+      let sourceHeight = img.height;
+
+      if (imgAspect > slotAspect) {
+        // Image is wider than slot - crop horizontally
+        sourceWidth = img.height * slotAspect;
+        sourceX = (img.width - sourceWidth) / 2;
+      } else {
+        // Image is taller than slot - crop vertically
+        sourceHeight = img.width / slotAspect;
+        sourceY = (img.height - sourceHeight) / 2;
+      }
+
+      // Draw the cropped image to fit the slot perfectly
+      ctx.drawImage(
+        img,
+        sourceX,
+        sourceY,
+        sourceWidth,
+        sourceHeight, // Source (cropped area)
+        x,
+        y,
+        width,
+        height // Destination (slot)
+      );
+    };
+
     const loadedImages: Promise<HTMLImageElement>[] = photosToUse.map(
       (photoSrc) => {
         return new Promise((resolve) => {
@@ -666,18 +713,45 @@ export default function ComposePage() {
                 sourceHeight = aiHeight;
               }
 
-              // Draw cropped section of AI image
-              ctx.drawImage(
-                aiImg,
-                sourceX,
-                sourceY,
-                sourceWidth,
-                sourceHeight, // Source crop
-                photoX,
-                photoY,
-                photoWidth,
-                photoHeight // Destination
-              );
+              // Draw cropped section of AI image proportionally
+              const tempImg = document.createElement("img");
+              tempImg.width = sourceWidth;
+              tempImg.height = sourceHeight;
+
+              // Create a temporary canvas to crop the AI image section
+              const tempCanvas = document.createElement("canvas");
+              tempCanvas.width = sourceWidth;
+              tempCanvas.height = sourceHeight;
+              const tempCtx = tempCanvas.getContext("2d");
+
+              if (tempCtx) {
+                tempCtx.drawImage(
+                  aiImg,
+                  sourceX,
+                  sourceY,
+                  sourceWidth,
+                  sourceHeight,
+                  0,
+                  0,
+                  sourceWidth,
+                  sourceHeight
+                );
+
+                // Convert temp canvas to image and draw proportionally
+                const croppedDataUrl = tempCanvas.toDataURL();
+                const croppedImg = document.createElement("img");
+                croppedImg.onload = () => {
+                  drawImageProportional(
+                    croppedImg,
+                    photoX,
+                    photoY,
+                    photoWidth,
+                    photoHeight,
+                    ctx
+                  );
+                };
+                croppedImg.src = croppedDataUrl;
+              }
             }
 
             // Apply frame image if it exists (for hybrid frames)
@@ -700,16 +774,29 @@ export default function ComposePage() {
           };
           aiImg.src = aiGeneratedImage;
         } else {
-          // No AI - draw original photos ONLY
-          console.log("Drawing original photos only (no AI)");
+          // No AI - draw original photos ONLY with proportional scaling
+          console.log(
+            "Drawing original photos only (no AI) with proportional scaling"
+          );
           images.slice(0, actualPhotoCount).forEach((img, index) => {
+            let photoX, photoY;
             if (config.orientation === "vertical") {
-              const y = 20 + index * (photoHeight + config.spacing);
-              ctx.drawImage(img, 20, y, photoWidth, photoHeight);
+              photoX = 20;
+              photoY = 20 + index * (photoHeight + config.spacing);
             } else {
-              const x = 20 + index * (photoWidth + config.spacing);
-              ctx.drawImage(img, x, 20, photoWidth, photoHeight);
+              photoX = 20 + index * (photoWidth + config.spacing);
+              photoY = 20;
             }
+
+            // Draw each image proportionally
+            drawImageProportional(
+              img,
+              photoX,
+              photoY,
+              photoWidth,
+              photoHeight,
+              ctx
+            );
           });
 
           // Apply frame if exists
@@ -866,8 +953,48 @@ export default function ComposePage() {
       drawMultiPhotoLayout(ctx, canvas, photos);
     } else {
       // Single photo layout
-      canvas.width = 400;
-      canvas.height = 300;
+      // Set canvas size to match the image's natural size for proportional rendering
+      const img = document.createElement("img");
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        // Apply AI generated image as overlay if available
+        if (aiGeneratedImage) {
+          const aiImg = document.createElement("img");
+          aiImg.crossOrigin = "anonymous";
+          aiImg.onload = () => {
+            // Set canvas size to match AI image size for proportional rendering
+            canvas.width = aiImg.naturalWidth;
+            canvas.height = aiImg.naturalHeight;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            ctx.drawImage(aiImg, 0, 0, canvas.width, canvas.height);
+
+            // Apply frame after AI overlay
+            if (selectedFrame.src) {
+              const frameImg = document.createElement("img");
+              frameImg.onload = () => {
+                ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
+              };
+              frameImg.src = selectedFrame.src;
+            }
+          };
+          aiImg.src = aiGeneratedImage;
+        } else if (selectedFrame.src) {
+          // Apply frame directly if no AI
+          const frameImg = document.createElement("img");
+          frameImg.onload = () => {
+            ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
+          };
+          frameImg.src = selectedFrame.src;
+        }
+      };
+      img.src = photos[0];
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       const photoToUse = photos[0];
@@ -919,7 +1046,7 @@ export default function ComposePage() {
     const { shots, layout } = layoutInfo;
     const actualPhotoCount = Math.min(photos.length, shots);
 
-    // Define layout configurations
+    // Define layout configurations with reduced spacing
     type PhotoSlot = { x: number; y: number; width: number; height: number };
     type LayoutConfig = {
       canvasWidth: number;
@@ -929,47 +1056,47 @@ export default function ComposePage() {
     const layoutConfigs: Record<string, LayoutConfig> = {
       "double-vertical": {
         canvasWidth: 400,
-        canvasHeight: 600,
+        canvasHeight: 520,
         photoSlots: [
           { x: 50, y: 50, width: 300, height: 200 },
-          { x: 50, y: 350, width: 300, height: 200 },
+          { x: 50, y: 270, width: 300, height: 200 },
         ],
       },
       "double-horizontal": {
-        canvasWidth: 600,
+        canvasWidth: 520,
         canvasHeight: 400,
         photoSlots: [
           { x: 50, y: 100, width: 200, height: 200 },
-          { x: 350, y: 100, width: 200, height: 200 },
+          { x: 270, y: 100, width: 200, height: 200 },
         ],
       },
       "triple-vertical": {
         canvasWidth: 400,
-        canvasHeight: 750,
+        canvasHeight: 690,
         photoSlots: [
           { x: 50, y: 50, width: 300, height: 200 },
-          { x: 50, y: 275, width: 300, height: 200 },
-          { x: 50, y: 500, width: 300, height: 200 },
+          { x: 50, y: 270, width: 300, height: 200 },
+          { x: 50, y: 490, width: 300, height: 200 },
         ],
       },
       "quad-vertical": {
         canvasWidth: 400,
-        canvasHeight: 900,
+        canvasHeight: 860,
         photoSlots: [
           { x: 50, y: 50, width: 300, height: 175 },
-          { x: 50, y: 250, width: 300, height: 175 },
-          { x: 50, y: 450, width: 300, height: 175 },
-          { x: 50, y: 650, width: 300, height: 175 },
+          { x: 50, y: 245, width: 300, height: 175 },
+          { x: 50, y: 440, width: 300, height: 175 },
+          { x: 50, y: 635, width: 300, height: 175 },
         ],
       },
       "quad-horizontal": {
-        canvasWidth: 800,
+        canvasWidth: 680,
         canvasHeight: 400,
         photoSlots: [
           { x: 50, y: 100, width: 150, height: 200 },
-          { x: 250, y: 100, width: 150, height: 200 },
-          { x: 450, y: 100, width: 150, height: 200 },
-          { x: 650, y: 100, width: 150, height: 200 },
+          { x: 220, y: 100, width: 150, height: 200 },
+          { x: 390, y: 100, width: 150, height: 200 },
+          { x: 560, y: 100, width: 150, height: 200 },
         ],
       },
     };
@@ -984,6 +1111,44 @@ export default function ComposePage() {
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+    // Helper function to draw image proportionally (cover mode)
+    const drawImageProportional = (
+      img: HTMLImageElement,
+      slot: PhotoSlot,
+      ctx: CanvasRenderingContext2D
+    ) => {
+      const imgAspect = img.width / img.height;
+      const slotAspect = slot.width / slot.height;
+
+      let sourceX = 0;
+      let sourceY = 0;
+      let sourceWidth = img.width;
+      let sourceHeight = img.height;
+
+      if (imgAspect > slotAspect) {
+        // Image is wider than slot - crop horizontally
+        sourceWidth = img.height * slotAspect;
+        sourceX = (img.width - sourceWidth) / 2;
+      } else {
+        // Image is taller than slot - crop vertically
+        sourceHeight = img.width / slotAspect;
+        sourceY = (img.height - sourceHeight) / 2;
+      }
+
+      // Draw the cropped image to fit the slot perfectly
+      ctx.drawImage(
+        img,
+        sourceX,
+        sourceY,
+        sourceWidth,
+        sourceHeight, // Source (cropped area)
+        slot.x,
+        slot.y,
+        slot.width,
+        slot.height // Destination (slot)
+      );
+    };
+
     // Draw photos
     let loadedCount = 0;
     const totalToLoad = actualPhotoCount;
@@ -996,7 +1161,8 @@ export default function ComposePage() {
         const img = document.createElement("img");
         img.crossOrigin = "anonymous";
         img.onload = () => {
-          ctx.drawImage(img, slot.x, slot.y, slot.width, slot.height);
+          // Draw image proportionally to maintain aspect ratio
+          drawImageProportional(img, slot, ctx);
           loadedCount++;
 
           // Apply AI and frame after all photos are loaded
@@ -1144,6 +1310,13 @@ export default function ComposePage() {
           icon: "warning",
           title: "Insufficient Tokens",
           text: "You don't have enough tokens to use the AI feature. Please top up your tokens.",
+          confirmButtonText: "Go to Payment",
+          showCancelButton: true,
+          cancelButtonText: "Cancel",
+        }).then((result) => {
+          if (result.isConfirmed) {
+            router.push("/payment");
+          }
         });
         return;
       }
@@ -1385,12 +1558,37 @@ export default function ComposePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100">
-      {/* Header */}
-      <div className="bg-white border-b border-slate-200 shadow-sm p-8"></div>
-
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 pt-16">
       {/* Main Content */}
-      <div className="container mx-auto px-6 py-8 max-w-7xl">
+      <div className="container mx-auto px-6 py-1 max-w-7xl">
+        {/* Header as Content */}
+        <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-xl border border-white/20 mb-8">
+          <div className="px-8 py-6">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-red-600 rounded-2xl flex items-center justify-center shadow-lg">
+                  <Palette className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold bg-gradient-to-r from-slate-800 to-red-600 bg-clip-text text-transparent">
+                    Photo Editor
+                  </h1>
+                  <p className="text-slate-600 font-medium">
+                    Customize your photos with frames and AI effects
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => router.push("/booth")}
+                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-slate-100 to-slate-200 hover:from-slate-200 hover:to-slate-300 text-slate-700 hover:text-slate-900 rounded-2xl font-semibold text-sm transition-all duration-200 border border-slate-200 hover:border-slate-300 shadow-lg hover:shadow-xl"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back to Booth
+              </button>
+            </div>
+          </div>
+        </div>
+
         {!selectedPhoto ? (
           <div className="text-center py-20">
             <div className="w-24 h-24 bg-gradient-to-br from-slate-100 to-slate-200 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-lg">
@@ -1413,9 +1611,9 @@ export default function ComposePage() {
           </div>
         ) : (
           <div className="grid xl:grid-cols-5 lg:grid-cols-3 gap-8">
-            {/* Left Panel - Canvas */}
+            {/* Left Panel - Canvas (Sticky) */}
             <div className="xl:col-span-3 lg:col-span-2">
-              <div className="bg-white rounded-3xl shadow-lg border border-slate-200 p-8">
+              <div className="sticky top-20 bg-white rounded-3xl shadow-lg border border-slate-200 p-8">
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
@@ -1434,36 +1632,37 @@ export default function ComposePage() {
                       className="border border-slate-300 rounded-xl shadow-lg bg-white"
                       style={{ maxWidth: "100%", height: "auto" }}
                     />
+                    {/* <img src={dbPhotoData?.images[0]} alt="" /> */}
                   </div>
                 </div>
 
                 {selectedPhoto && (
-                  <div className="space-y-6">
-                    {/* Main Action Buttons */}
-                    <div className="flex flex-wrap gap-3 justify-center">
+                  <div className="space-y-4">
+                    {/* Main Action Buttons - Single Row */}
+                    <div className="flex gap-2 justify-center flex-wrap">
                       <button
                         onClick={handleDownload}
-                        className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-8 py-3 rounded-full font-bold text-lg transition-all shadow-lg hover:shadow-xl transform hover:scale-105 border-2 border-blue-400 flex items-center gap-2"
+                        className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition-all shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center gap-2"
                       >
-                        <Download className="w-5 h-5" />
+                        <Download className="w-4 h-4" />
                         Download
                       </button>
 
                       <button
                         onClick={saveToCloudinary}
                         disabled={uploading}
-                        className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-8 py-3 rounded-full font-bold text-lg transition-all shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 border-2 border-purple-400 flex items-center gap-2"
+                        className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition-all shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 flex items-center gap-2"
                       >
-                        <CloudUpload className="w-5 h-5" />
+                        <CloudUpload className="w-4 h-4" />
                         {uploading ? "Saving..." : "Save to Cloud"}
                       </button>
 
                       <button
                         onClick={shareToWhatsApp}
                         disabled={uploading}
-                        className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-8 py-3 rounded-full font-bold text-lg transition-all shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 border-2 border-green-400 flex items-center gap-2"
+                        className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition-all shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 flex items-center gap-2"
                       >
-                        <MessageCircle className="w-5 h-5" />
+                        <MessageCircle className="w-4 h-4" />
                         {uploading ? "Sending..." : "Share WhatsApp"}
                       </button>
 
@@ -1471,7 +1670,7 @@ export default function ComposePage() {
                       {(selectedFrame.id !== "none" || aiGeneratedImage) && (
                         <button
                           onClick={handleRemoveFrame}
-                          className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-6 py-3 rounded-full font-bold text-sm transition-all shadow-lg hover:shadow-xl transform hover:scale-105 border-2 border-red-400 flex items-center gap-2"
+                          className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition-all shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center gap-2"
                         >
                           <Trash2 className="w-4 h-4" />
                           {aiGeneratedImage
@@ -1481,41 +1680,14 @@ export default function ComposePage() {
                       )}
                     </div>
 
-                    {/* Message Alert */}
+                    {/* Message Alert - Smaller Size */}
                     {message && (
-                      <div className="bg-gradient-to-r from-blue-50 to-blue-100 border-2 border-blue-300 rounded-2xl p-4 shadow-lg">
-                        <div className="flex items-center gap-3">
-                          <div className="w-4 h-4 bg-blue-500 rounded-full animate-pulse shadow-lg"></div>
-                          <p className="text-sm font-bold text-blue-800">
+                      <div className="bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 rounded-xl p-3 shadow-sm">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+                          <p className="text-xs font-medium text-blue-700">
                             {message}
                           </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* QR Code Section */}
-                    {uploadedPhotoUrl && (
-                      <div className="bg-gradient-to-br from-white to-cream-50 rounded-2xl shadow-xl border-4 border-coral-200 text-center p-6">
-                        <h3 className="text-lg font-bold mb-4 text-charcoal-800 tracking-wide flex items-center justify-center gap-2">
-                          <ExternalLink className="w-5 h-5" />
-                          QUICK ACCESS
-                        </h3>
-                        <div className="inline-block bg-white p-4 rounded-xl shadow-lg border-2 border-coral-200 mb-4">
-                          <QRCodeCanvas
-                            value={uploadedPhotoUrl}
-                            size={150}
-                            level="M"
-                          />
-                        </div>
-                        <div>
-                          <a
-                            href={uploadedPhotoUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="bg-gradient-to-r from-coral-500 to-coral-600 hover:from-coral-600 hover:to-coral-700 text-white px-6 py-3 rounded-full font-bold text-sm transition-all shadow-lg hover:shadow-xl transform hover:scale-105 inline-block border-2 border-coral-400"
-                          >
-                            🔗 Open Photo
-                          </a>
                         </div>
                       </div>
                     )}
@@ -1524,33 +1696,34 @@ export default function ComposePage() {
               </div>
             </div>
 
-            {/* Right Panel - Controls */}
-            <div className="xl:col-span-2 lg:col-span-1 space-y-6">
-              {/* Frame / Sticker / AI Selection */}
-              <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center">
-                    <Filter className="w-4 h-4 text-white" />
+            {/* Right Panel - Controls (Scrollable) */}
+            <div className="xl:col-span-2 lg:col-span-1">
+              <div className="h-screen overflow-y-auto pb-20 pr-2 space-y-6 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100">
+                {/* Frame / Sticker / AI Selection */}
+                <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center">
+                      <Filter className="w-4 h-4 text-white" />
+                    </div>
+                    <h3 className="text-lg font-bold text-slate-900">
+                      Customization
+                    </h3>
                   </div>
-                  <h3 className="text-lg font-bold text-slate-900">
-                    Customization
-                  </h3>
-                </div>
 
-                {/* Category Tabs */}
-                <div className="flex gap-2 mb-6">
-                  <button
-                    onClick={() => setActiveCategory("frame")}
-                    className={`px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 ${
-                      activeCategory === "frame"
-                        ? "bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-lg border border-purple-300"
-                        : "bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200"
-                    }`}
-                  >
-                    <ImageIcon className="w-4 h-4 mr-2" />
-                    Frames
-                  </button>
-                  {/* <button
+                  {/* Category Tabs */}
+                  <div className="flex gap-2 mb-6">
+                    <button
+                      onClick={() => setActiveCategory("frame")}
+                      className={`px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 ${
+                        activeCategory === "frame"
+                          ? "bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-lg border border-purple-300"
+                          : "bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200"
+                      }`}
+                    >
+                      <ImageIcon className="w-4 h-4 mr-2" />
+                      Frames
+                    </button>
+                    {/* <button
                     onClick={() => setActiveCategory("sticker")}
                     className={`px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 ${
                       activeCategory === "sticker"
@@ -1561,162 +1734,200 @@ export default function ComposePage() {
                     <span className="text-base mr-2">✨</span>
                     Stickers
                   </button> */}
-                  <button
-                    onClick={() => setActiveCategory("ai")}
-                    className={`px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 ${
-                      activeCategory === "ai"
-                        ? "bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-lg border border-purple-300"
-                        : "bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200"
-                    }`}
-                  >
-                    <Bot className="w-4 h-4 mr-2" />
-                    AI Style
-                  </button>
-                </div>
+                    <button
+                      onClick={() => setActiveCategory("ai")}
+                      className={`px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 ${
+                        activeCategory === "ai"
+                          ? "bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-lg border border-purple-300"
+                          : "bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200"
+                      }`}
+                    >
+                      <Bot className="w-4 h-4 mr-2" />
+                      AI Style
+                    </button>
+                  </div>
 
-                {/* Content per-tab */}
-                {activeCategory === "ai" ? (
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-semibold mb-1">
-                        Select AI Style
-                      </label>
-                      <p>Token : {currentUser?.tokens}</p>
-                      <div className="grid grid-cols-2 gap-2">
-                        {aiList.map((ai) => (
+                  {/* Content per-tab */}
+                  {activeCategory === "ai" ? (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-semibold mb-1">
+                          Select AI Style
+                        </label>
+                        <p>Token : {currentUser?.tokens}</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {aiList.map((ai) => (
+                            <button
+                              key={String(ai._id)}
+                              onClick={() => setAiPrompt(ai.prompt)}
+                              className={`p-2 rounded-lg border transition-all hover:scale-105 text-xs flex items-center gap-2 ${
+                                aiPrompt === ai.prompt
+                                  ? "bg-gradient-to-r from-purple-500 to-purple-600 text-white border-purple-400 shadow-md"
+                                  : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 shadow-sm"
+                              }`}
+                            >
+                              <div className="w-4 h-4 rounded-full overflow-hidden flex-shrink-0">
+                                <Image
+                                  src={ai.icon}
+                                  alt={ai.name}
+                                  className="w-full h-full object-cover"
+                                  width={16}
+                                  height={16}
+                                />
+                              </div>
+                              <span className="flex-1 text-left truncate">
+                                {ai.name}
+                              </span>
+                              {aiPrompt === ai.prompt && (
+                                <span className="text-xs">✓</span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {aiErr && (
+                        <div className="text-red-600 text-sm">{aiErr}</div>
+                      )}
+
+                      {/* Frame Warning */}
+                      {selectedFrame.id !== "none" && (
+                        <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-3">
+                          <div className="flex items-center gap-2">
+                            <AlertTriangle className="w-4 h-4 text-yellow-600" />
+                            <p className="text-sm text-yellow-800 font-medium">
+                              Pilih No Frame terlebih dahulu sebelum generate AI
+                              untuk mencegah duplikasi frame.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      <button
+                        disabled={!selectedPhoto || !aiPrompt || isGenerating}
+                        onClick={() => handleGenerateAI()}
+                        className={`w-full px-4 py-3 rounded-lg font-semibold border-2 transition-all shadow ${
+                          isGenerating
+                            ? "bg-gray-200 text-gray-600 border-gray-300 cursor-not-allowed"
+                            : selectedFrame.id !== "none"
+                            ? "bg-yellow-500 text-white border-yellow-400 hover:bg-yellow-600"
+                            : "bg-gradient-to-r from-indigo-500 to-indigo-600 text-white border-indigo-400 hover:from-indigo-600 hover:to-indigo-700"
+                        }`}
+                      >
+                        {isGenerating
+                          ? "Processing…"
+                          : selectedFrame.id !== "none"
+                          ? "Remove Frame & Generate"
+                          : "Generate Style from Preview"}
+                      </button>
+
+                      <p className="text-xs text-gray-500">
+                        Hasil AI akan menggantikan foto saat ini dan tetap bisa
+                        diberi frame/sticker lagi. Pastikan pilih No Frame
+                        terlebih dahulu untuk hasil terbaik.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      {availableFrames
+                        .filter(
+                          (frame) =>
+                            frame.category === activeCategory ||
+                            frame.id === "none"
+                        )
+                        .map((frame) => (
                           <button
-                            key={String(ai._id)}
-                            onClick={() => setAiPrompt(ai.prompt)}
-                            className={`p-2 rounded-lg border transition-all hover:scale-105 text-xs flex items-center gap-2 ${
-                              aiPrompt === ai.prompt
+                            key={frame.id}
+                            onClick={() => handleFrameChange(frame)}
+                            className={`p-2 rounded-lg border transition-all hover:scale-105 text-xs ${
+                              selectedFrame.id === frame.id
                                 ? "bg-gradient-to-r from-purple-500 to-purple-600 text-white border-purple-400 shadow-md"
                                 : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 shadow-sm"
                             }`}
                           >
-                            <div className="w-4 h-4 rounded-full overflow-hidden flex-shrink-0">
-                              <Image
-                                src={ai.icon}
-                                alt={ai.name}
-                                className="w-full h-full object-cover"
-                                width={16}
-                                height={16}
-                              />
-                            </div>
-                            <span className="flex-1 text-left truncate">
-                              {ai.name}
-                            </span>
-                            {aiPrompt === ai.prompt && (
-                              <span className="text-xs">✓</span>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {aiErr && (
-                      <div className="text-red-600 text-sm">{aiErr}</div>
-                    )}
-
-                    {/* Frame Warning */}
-                    {selectedFrame.id !== "none" && (
-                      <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-3">
-                        <div className="flex items-center gap-2">
-                          <AlertTriangle className="w-4 h-4 text-yellow-600" />
-                          <p className="text-sm text-yellow-800 font-medium">
-                            Pilih No Frame terlebih dahulu sebelum generate AI
-                            untuk mencegah duplikasi frame.
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    <button
-                      disabled={!selectedPhoto || !aiPrompt || isGenerating}
-                      onClick={() => handleGenerateAI()}
-                      className={`w-full px-4 py-3 rounded-lg font-semibold border-2 transition-all shadow ${
-                        isGenerating
-                          ? "bg-gray-200 text-gray-600 border-gray-300 cursor-not-allowed"
-                          : selectedFrame.id !== "none"
-                          ? "bg-yellow-500 text-white border-yellow-400 hover:bg-yellow-600"
-                          : "bg-gradient-to-r from-indigo-500 to-indigo-600 text-white border-indigo-400 hover:from-indigo-600 hover:to-indigo-700"
-                      }`}
-                    >
-                      {isGenerating
-                        ? "Processing…"
-                        : selectedFrame.id !== "none"
-                        ? "Remove Frame & Generate"
-                        : "Generate Style from Preview"}
-                    </button>
-
-                    <p className="text-xs text-gray-500">
-                      Hasil AI akan menggantikan foto saat ini dan tetap bisa
-                      diberi frame/sticker lagi. Pastikan pilih No Frame
-                      terlebih dahulu untuk hasil terbaik.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-2">
-                    {availableFrames
-                      .filter(
-                        (frame) =>
-                          frame.category === activeCategory ||
-                          frame.id === "none"
-                      )
-                      .map((frame) => (
-                        <button
-                          key={frame.id}
-                          onClick={() => handleFrameChange(frame)}
-                          className={`p-2 rounded-lg border transition-all hover:scale-105 text-xs ${
-                            selectedFrame.id === frame.id
-                              ? "bg-gradient-to-r from-purple-500 to-purple-600 text-white border-purple-400 shadow-md"
-                              : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 shadow-sm"
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 bg-white/20 rounded flex items-center justify-center flex-shrink-0">
-                              {frame.type === "strip" ? (
-                                <div className="flex flex-col gap-0.5">
-                                  {Array(
-                                    Math.min(
-                                      frame.stripConfig?.photoCount || 2,
-                                      3
+                            <div className="flex items-center gap-2">
+                              <div className="w-6 h-6 bg-white/20 rounded flex items-center justify-center flex-shrink-0">
+                                {frame.type === "strip" ? (
+                                  <div className="flex flex-col gap-0.5">
+                                    {Array(
+                                      Math.min(
+                                        frame.stripConfig?.photoCount || 2,
+                                        3
+                                      )
                                     )
-                                  )
-                                    .fill(0)
-                                    .map((_, i) => (
-                                      <div
-                                        key={i}
-                                        className="w-1.5 h-0.5 bg-current rounded"
-                                      ></div>
-                                    ))}
-                                </div>
-                              ) : frame.src ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                  src={frame.src}
-                                  alt={frame.name}
-                                  className="w-4 h-4 object-cover rounded"
-                                />
-                              ) : (
-                                <X className="w-4 h-4 text-gray-400" />
-                              )}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="text-left truncate">
-                                {frame.name}
-                                {frame.type === "strip" && (
-                                  <span className="block text-xs opacity-70">
-                                    {frame.stripConfig?.photoCount} photos strip
-                                  </span>
+                                      .fill(0)
+                                      .map((_, i) => (
+                                        <div
+                                          key={i}
+                                          className="w-1.5 h-0.5 bg-current rounded"
+                                        ></div>
+                                      ))}
+                                  </div>
+                                ) : frame.src ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img
+                                    src={frame.src}
+                                    alt={frame.name}
+                                    className="w-4 h-4 object-cover rounded"
+                                  />
+                                ) : (
+                                  <X className="w-4 h-4 text-gray-400" />
                                 )}
                               </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-left truncate">
+                                  {frame.name}
+                                  {frame.type === "strip" && (
+                                    <span className="block text-xs opacity-70">
+                                      {frame.stripConfig?.photoCount} photos
+                                      strip
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              {selectedFrame.id === frame.id && (
+                                <Check className="w-4 h-4 text-green-500" />
+                              )}
                             </div>
-                            {selectedFrame.id === frame.id && (
-                              <Check className="w-4 h-4 text-green-500" />
-                            )}
-                          </div>
-                        </button>
-                      ))}
+                          </button>
+                        ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* QR Code Section */}
+                {uploadedPhotoUrl && (
+                  <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
+                        <ExternalLink className="w-4 h-4 text-white" />
+                      </div>
+                      <h3 className="text-lg font-bold text-slate-900">
+                        Quick Access
+                      </h3>
+                    </div>
+
+                    <div className="text-center">
+                      <div className="inline-block bg-gradient-to-br from-slate-50 to-slate-100 p-4 rounded-xl shadow-inner border border-slate-200 mb-4">
+                        <QRCodeCanvas
+                          value={uploadedPhotoUrl}
+                          size={120}
+                          level="M"
+                          className="block"
+                        />
+                      </div>
+                      <div>
+                        <a
+                          href={uploadedPhotoUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 shadow-lg hover:shadow-xl"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          Open Photo
+                        </a>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>

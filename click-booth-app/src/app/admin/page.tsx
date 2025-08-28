@@ -1,7 +1,8 @@
 "use client";
 
 import { AiType } from "@/type";
-import { ObjectId } from "mongodb";
+// import { ObjectId } from "mongodb";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState, useRef } from "react";
 import Swal from "sweetalert2";
@@ -33,22 +34,28 @@ export default function AdminPage() {
   const [username, setUsername] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
+  const [currentDate, setCurrentDate] = useState("");
 
   // Add Admin Modal states
   const [showAddAdminModal, setShowAddAdminModal] = useState(false);
   const [isAddAdminModalClosing, setIsAddAdminModalClosing] = useState(false);
   const [isAddAdminModalOpening, setIsAddAdminModalOpening] = useState(false);
 
-  const route = useRouter();
+  // Removed unused route variable
 
-  function handleFileChange(e: any) {
+  // Set current date on client side only
+  useEffect(() => {
+    setCurrentDate(new Date().toLocaleDateString());
+  }, []);
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (file) {
       setUploadFile(file);
     }
   }
 
-  function handleEditFileChange(e: any) {
+  function handleEditFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (file) {
       setEditUploadFile(file);
@@ -453,78 +460,175 @@ export default function AdminPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-cream-50 to-cream-100">
-      {/* Header */}
-      <div className="bg-white shadow-lg border-b border-cream-200 mt-13">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-4">
-              <div>
-                <h1 className="text-2xl font-bold text-charcoal-900">
-                  Admin Dashboard
-                </h1>
-                <p className="text-sm text-charcoal-600">
-                  Manage AI Photo Styles
-                </p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-blue-50">
+      <div className="max-w-7xl mx-auto px-6 pt-20 pb-8">
+        {/* Header */}
+        <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-xl border border-white/20 mb-8">
+          <div className="px-8 py-8">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
+                  <svg
+                    className="w-6 h-6 text-white"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <h1 className="text-3xl font-bold bg-gradient-to-r from-slate-800 to-blue-600 bg-clip-text text-transparent">
+                    Admin Dashboard
+                  </h1>
+                  <p className="text-slate-600 font-medium">
+                    Manage AI Photo Styles & System
+                  </p>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-warm-gradient rounded-full flex items-center justify-center">
-                <span className="text-white text-sm font-semibold">A</span>
+              <div className="flex items-center space-x-3 bg-slate-100 rounded-2xl px-4 py-2">
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <span className="text-white text-sm font-bold">A</span>
+                </div>
+                <div>
+                  <span className="text-slate-800 font-semibold text-sm">
+                    Administrator
+                  </span>
+                  <p className="text-slate-500 text-xs">System Admin</p>
+                </div>
               </div>
-              <span className="text-charcoal-700 font-medium">Admin</span>
             </div>
           </div>
         </div>
-      </div>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Stats Cards */}
-        <div className="mb-8">
-          <div className="bg-white rounded-xl shadow-sm border border-cream-200 p-6 w-full">
-            <div className="flex items-center">
-              <div className="w-12 h-12 bg-warmRed-100 rounded-lg flex items-center justify-center">
-                <svg
-                  className="w-6 h-6 text-warmRed-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2h4a1 1 0 011 1v1a1 1 0 01-1 1h-1v12a2 2 0 01-2 2H6a2 2 0 01-2-2V7H3a1 1 0 01-1-1V5a1 1 0 011-1h4z"
-                  />
-                </svg>
+        <div className="mb-10">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-6 shadow-xl border border-white/20 hover:shadow-2xl transition-all duration-300 hover:scale-105">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-2xl font-bold text-slate-800">
+                    {aiList.length}
+                  </h3>
+                  <p className="text-slate-600 font-medium">Total AI Styles</p>
+                </div>
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
+                  <svg
+                    className="w-6 h-6 text-white"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2h4a1 1 0 011 1v1a1 1 0 01-1 1h-1v12a2 2 0 01-2 2H6a2 2 0 01-2-2V7H3a1 1 0 01-1-1V5a1 1 0 011-1h4z"
+                    />
+                  </svg>
+                </div>
               </div>
-              <div className="ml-4">
-                <p className="text-charcoal-600 text-sm font-medium">
-                  Total Styles
-                </p>
-                <p className="text-2xl font-bold text-charcoal-900">
-                  {aiList.length}
-                </p>
+            </div>
+
+            <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-6 shadow-xl border border-white/20 hover:shadow-2xl transition-all duration-300 hover:scale-105">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-2xl font-bold text-slate-800">
+                    {aiList.length}
+                  </h3>
+                  <p className="text-slate-600 font-medium">Active Styles</p>
+                </div>
+                <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center shadow-lg">
+                  <svg
+                    className="w-6 h-6 text-white"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-6 shadow-xl border border-white/20 hover:shadow-2xl transition-all duration-300 hover:scale-105">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-2xl font-bold text-slate-800">
+                    {Math.floor(aiList.length * 0.8)}
+                  </h3>
+                  <p className="text-slate-600 font-medium">Inactive Styles</p>
+                </div>
+                <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl flex items-center justify-center shadow-lg">
+                  <svg
+                    className="w-6 h-6 text-white"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
+                    />
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-6 shadow-xl border border-white/20 hover:shadow-2xl transition-all duration-300 hover:scale-105">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-2xl font-bold text-slate-800">
+                    {currentDate || "Loading..."}
+                  </h3>
+                  <p className="text-slate-600 font-medium">Last Updated</p>
+                </div>
+                <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl flex items-center justify-center shadow-lg">
+                  <svg
+                    className="w-6 h-6 text-white"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8 7V3a1 1 0 011-1h6a1 1 0 011 1v4M8 7h8M8 7l-2 9h12l-2-9"
+                    />
+                  </svg>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
         {/* AI Styles Table */}
-        <div className="bg-white rounded-xl shadow-sm border border-cream-200 mb-8">
-          <div className="px-6 py-4 border-b border-cream-200 flex justify-between items-center">
+        <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-xl border border-white/20 mb-8">
+          <div className="px-8 py-6 border-b border-slate-200 flex justify-between items-center">
             <div>
-              <h2 className="text-lg font-semibold text-charcoal-900">
+              <h2 className="text-2xl font-bold bg-gradient-to-r from-slate-800 to-blue-600 bg-clip-text text-transparent">
                 AI Photo Styles
               </h2>
-              <p className="text-sm text-charcoal-600">
-                Manage your AI transformation styles
+              <p className="text-slate-600 font-medium mt-1">
+                Manage your AI transformation styles and effects
               </p>
             </div>
-            <div className="flex space-x-3">
+            <div className="flex space-x-4">
               <button
                 onClick={openAddAdminModal}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-all transform hover:scale-105 hover:shadow-lg active:scale-95 flex items-center"
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-6 py-3 rounded-2xl font-semibold transition-all duration-300 transform hover:scale-105 hover:shadow-xl active:scale-95 flex items-center"
               >
                 <svg
                   className="w-5 h-5 mr-2"
@@ -543,7 +647,7 @@ export default function AdminPage() {
               </button>
               <button
                 onClick={openAddModal}
-                className="bg-white hover:bg-gray-100 text-black px-6 py-3 rounded-lg font-semibold transition-all transform hover:scale-105 hover:shadow-lg active:scale-95 flex items-center border border-black"
+                className="bg-white hover:bg-slate-50 text-slate-800 px-6 py-3 rounded-2xl font-semibold transition-all duration-300 transform hover:scale-105 hover:shadow-xl active:scale-95 flex items-center border border-slate-300 shadow-lg"
               >
                 <svg
                   className="w-5 h-5 mr-2"
@@ -564,69 +668,69 @@ export default function AdminPage() {
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-cream-50">
+              <thead className="bg-gradient-to-r from-slate-100 to-blue-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-charcoal-700 uppercase tracking-wider">
+                  <th className="px-8 py-4 text-left text-sm font-bold text-slate-700 tracking-wide">
                     No
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-charcoal-700 uppercase tracking-wider">
+                  <th className="px-8 py-4 text-left text-sm font-bold text-slate-700 tracking-wide">
                     Icon
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-charcoal-700 uppercase tracking-wider">
+                  <th className="px-8 py-4 text-left text-sm font-bold text-slate-700 tracking-wide">
                     Name
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-charcoal-700 uppercase tracking-wider">
+                  <th className="px-8 py-4 text-left text-sm font-bold text-slate-700 tracking-wide">
                     Prompt
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-charcoal-700 uppercase tracking-wider">
+                  <th className="px-8 py-4 text-left text-sm font-bold text-slate-700 tracking-wide">
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-cream-200">
+              <tbody className="divide-y divide-slate-200">
                 {aiList.map((ai, index) => (
                   <tr
                     key={String(ai._id)}
-                    className="hover:bg-cream-50 cursor-pointer transition-colors"
+                    className="hover:bg-slate-50 cursor-pointer transition-all duration-200 hover:shadow-sm"
                     onClick={() => handleViewDetails(ai)}
                   >
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-charcoal-900">
+                    <td className="px-8 py-6 whitespace-nowrap text-sm font-medium text-slate-800">
                       {index + 1}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="w-10 h-10 rounded-lg bg-peach-100 flex items-center justify-center overflow-hidden border border-peach-200">
-                        <img
+                    <td className="px-8 py-6 whitespace-nowrap">
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center overflow-hidden border border-white shadow-lg">
+                        <Image
                           src={ai.icon}
                           alt={ai.name}
-                          className="w-8 h-8 object-cover rounded"
+                          width={40}
+                          height={40}
+                          className="w-10 h-10 object-cover rounded-xl"
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
                             target.style.display = "none";
                             target.nextElementSibling!.textContent = "🎨";
                           }}
                         />
-                        <span className="text-lg hidden text-peach-600">
-                          🎨
-                        </span>
+                        <span className="text-xl hidden text-blue-600">🎨</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-charcoal-900">
+                    <td className="px-8 py-6 whitespace-nowrap">
+                      <div className="text-base font-semibold text-slate-800">
                         {ai.name}
                       </div>
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-charcoal-700 max-w-xs truncate">
+                    <td className="px-8 py-6">
+                      <div className="text-sm text-slate-600 max-w-xs truncate leading-relaxed">
                         {ai.prompt}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-charcoal-500">
+                    <td className="px-8 py-6 whitespace-nowrap text-sm">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           handleViewDetails(ai);
                         }}
-                        className="text-warmRed-600 hover:text-warmRed-900 transition-colors"
+                        className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-4 py-2 rounded-xl font-medium transition-all duration-200 transform hover:scale-105 shadow-lg"
                       >
                         View Details
                       </button>
@@ -1088,9 +1192,11 @@ export default function AdminPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
                     <div className="w-12 h-12 rounded-xl bg-peach-100 border border-peach-200 flex items-center justify-center mr-4 overflow-hidden">
-                      <img
+                      <Image
                         src={isEditMode ? editIcon : selectedStyle.icon}
                         alt={isEditMode ? editName : selectedStyle.name}
+                        width={40}
+                        height={40}
                         className="w-10 h-10 object-cover rounded-lg"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
@@ -1211,9 +1317,11 @@ export default function AdminPage() {
                   ) : (
                     <div className="px-4 py-3 bg-cream-50 rounded-lg border border-cream-200 flex items-center">
                       <div className="w-14 h-14 rounded-xl bg-peach-100 border border-peach-200 flex items-center justify-center mr-4 overflow-hidden">
-                        <img
+                        <Image
                           src={selectedStyle.icon}
                           alt={selectedStyle.name}
+                          width={48}
+                          height={48}
                           className="w-12 h-12 object-cover rounded-lg"
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;

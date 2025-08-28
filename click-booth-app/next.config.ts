@@ -78,6 +78,8 @@ const nextConfig: NextConfig = {
     }
     return config;
   },
+  // Development configuration to suppress certain warnings
+  reactStrictMode: true,
 };
 
 export default nextConfig;

@@ -103,7 +103,7 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-amber-50 py-8 flex items-center justify-center">
+    <div className="min-h-screen bg-amber-50 py-15 flex items-center justify-center">
       <div className="max-w-lg w-full mx-4">
         {/* Header */}
         <div className="text-center mb-8">
@@ -120,7 +120,11 @@ export default function RegisterPage() {
 
         {/* Registration Form */}
         <div className="bg-white rounded-2xl shadow-xl border border-amber-200 p-8">
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form
+            onSubmit={handleSubmit}
+            className="space-y-6"
+            suppressHydrationWarning
+          >
             {/* Full Name */}
             <div>
               <label
@@ -138,6 +142,7 @@ export default function RegisterPage() {
                 onChange={handleInputChange}
                 className="w-full px-4 py-3 border border-amber-200 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-colors bg-white"
                 required
+                suppressHydrationWarning
               />
             </div>
 
@@ -158,6 +163,7 @@ export default function RegisterPage() {
                 onChange={handleInputChange}
                 className="w-full px-4 py-3 border border-amber-200 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-colors bg-white"
                 required
+                suppressHydrationWarning
               />
             </div>
 
@@ -179,6 +185,7 @@ export default function RegisterPage() {
                   onChange={handleInputChange}
                   className="w-full px-4 py-3 border border-amber-200 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-colors bg-white"
                   required
+                  suppressHydrationWarning
                 />
               </div>
               <div>
@@ -197,6 +204,7 @@ export default function RegisterPage() {
                   onChange={handleInputChange}
                   className="w-full px-4 py-3 border border-amber-200 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-colors bg-white"
                   required
+                  suppressHydrationWarning
                 />
               </div>
             </div>
@@ -220,11 +228,13 @@ export default function RegisterPage() {
                     onChange={handleInputChange}
                     className="w-full px-4 py-3 pr-12 border border-amber-200 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-colors bg-white"
                     required
+                    suppressHydrationWarning
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                    suppressHydrationWarning
                   >
                     {showPassword ? (
                       <EyeOff className="w-5 h-5" />
@@ -251,11 +261,13 @@ export default function RegisterPage() {
                     onChange={handleInputChange}
                     className="w-full px-4 py-3 pr-12 border border-amber-200 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-colors bg-white"
                     required
+                    suppressHydrationWarning
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                    suppressHydrationWarning
                   >
                     {showConfirmPassword ? (
                       <EyeOff className="w-5 h-5" />
@@ -291,6 +303,7 @@ export default function RegisterPage() {
                   ? "bg-gray-400 cursor-not-allowed"
                   : "bg-red-500 hover:bg-red-600 text-white"
               }`}
+              suppressHydrationWarning
             >
               {!loading && (
                 <>

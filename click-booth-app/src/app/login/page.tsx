@@ -10,6 +10,7 @@ import {
   AlertCircle,
   CheckCircle,
 } from "lucide-react";
+import { dispatchAuthUpdate } from "@/helpers/tokenUpdateHelper";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -33,7 +34,7 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
 
-      let data: any = null;
+      let data: { message?: string } | null = null;
       try {
         data = await res.json();
       } catch {
@@ -49,7 +50,22 @@ export default function LoginPage() {
 
       // optional: immediately validate and warm /api/me (trusted)
       try {
-        await fetch("/api/me", { method: "GET", credentials: "include" });
+        const userResponse = await fetch("/api/me", {
+          method: "GET",
+          credentials: "include",
+        });
+        if (userResponse.ok) {
+          const userData = await userResponse.json();
+          if (userData.authenticated) {
+            // Dispatch auth update to notify navbar
+            dispatchAuthUpdate("login", {
+              id: userData.id,
+              email: userData.email,
+              role: userData.role,
+              tokens: userData.tokens || 0,
+            });
+          }
+        }
       } catch {
         /* ignore */
       }
@@ -110,7 +126,11 @@ export default function LoginPage() {
         )}
 
         {/* Login Form */}
-        <form onSubmit={handleLogin} className="space-y-6">
+        <form
+          onSubmit={handleLogin}
+          className="space-y-6"
+          suppressHydrationWarning
+        >
           <div>
             <label
               htmlFor="email"
@@ -129,6 +149,7 @@ export default function LoginPage() {
                 placeholder="Enter your email"
                 required
                 disabled={loading}
+                suppressHydrationWarning
               />
             </div>
           </div>
@@ -151,6 +172,7 @@ export default function LoginPage() {
                 placeholder="Enter your password"
                 required
                 disabled={loading}
+                suppressHydrationWarning
               />
             </div>
           </div>
@@ -163,6 +185,7 @@ export default function LoginPage() {
                 ? "bg-gray-400 cursor-not-allowed"
                 : "bg-red-500 hover:bg-red-600 text-white"
             }`}
+            suppressHydrationWarning
           >
             {!loading && <LogIn className="w-5 h-5" />}
             <span>{loading ? "Signing in..." : "Sign In"}</span>

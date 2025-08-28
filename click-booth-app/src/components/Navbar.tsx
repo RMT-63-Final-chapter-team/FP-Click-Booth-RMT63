@@ -18,10 +18,15 @@ import {
   Home,
   ImageIcon,
   LogIn,
+  Settings,
   User,
   UserPlus,
 } from "lucide-react";
 import { getUserFromCookiesClient } from "@/helpers/getUserFromCookiesClient";
+import {
+  addTokenUpdateListener,
+  addAuthUpdateListener,
+} from "@/helpers/tokenUpdateHelper";
 
 interface UserData {
   id: string;
@@ -43,6 +48,28 @@ export default function Navbar() {
       // Fetch latest token count
       fetchUserTokens();
     }
+  }, []);
+
+  // Re-check user data when component becomes visible or window gains focus
+  useEffect(() => {
+    const handleFocus = () => {
+      const userData = getUserFromCookiesClient();
+      if (userData) {
+        setUser(userData);
+        fetchUserTokens();
+      } else {
+        setUser(null);
+        setUserTokens(0);
+      }
+    };
+
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleFocus);
+
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleFocus);
+    };
   }, []);
 
   const fetchUserTokens = async () => {
@@ -75,6 +102,35 @@ export default function Navbar() {
     };
   }, [user]);
 
+  // Listen for token updates from other components
+  useEffect(() => {
+    const cleanup = addTokenUpdateListener((tokens) => {
+      if (typeof tokens === "number") {
+        setUserTokens(tokens);
+      } else {
+        // Fallback: fetch latest tokens
+        fetchUserTokens();
+      }
+    });
+
+    return cleanup;
+  }, []);
+
+  // Listen for authentication updates (login/logout)
+  useEffect(() => {
+    const cleanup = addAuthUpdateListener((action, userData) => {
+      if (action === "login" && userData) {
+        setUser(userData);
+        setUserTokens(userData.tokens || 0);
+      } else if (action === "logout") {
+        setUser(null);
+        setUserTokens(0);
+      }
+    });
+
+    return cleanup;
+  }, []);
+
   const navItems = [
     { name: "Home", link: "/", icon: <Home className="w-4 h-4 mr-1" /> },
     {
@@ -94,8 +150,21 @@ export default function Navbar() {
     },
   ];
 
+  // Admin-only navigation items
+  const adminNavItems = [
+    {
+      name: "Admin",
+      link: "/admin",
+      icon: <Settings className="w-4 h-4 mr-1" />,
+    },
+  ];
+
+  // Combine nav items based on user role
+  const allNavItems =
+    user?.role === "admin" ? [...navItems, ...adminNavItems] : navItems;
+
   return (
-    <div className="fixed top-0 inset-x-0 z-50 w-full">
+    <div className="fixed top-0 inset-x-0 z-50 w-full" suppressHydrationWarning>
       <ResizableNavbar className="top-0">
         {/* Desktop Navigation */}
         <NavBody>
@@ -106,18 +175,18 @@ export default function Navbar() {
           >
             <div className="w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden">
               <Image
-                src="/clickBooth.png"
+                src="/logonobg.png"
                 alt="ClickBooth Logo"
                 width={50}
                 height={50}
                 className="object-contain"
               />
             </div>
-            <div className="text-base text-slate-800 px-2 py-1 font-bold">
+            {/* <div className="text-base text-slate-800 px-2 py-1 font-bold">
               <span className="font-bold text-slate-800">
                 Click<span className="text-red-500">Booth</span>
               </span>
-            </div>
+            </div> */}
             {/* <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full font-medium">
               PROFESSIONAL STUDIO
             </span> */}
@@ -125,7 +194,7 @@ export default function Navbar() {
 
           {/* Navigation Items */}
           <div className="hidden lg:flex items-center justify-center space-x-1">
-            {navItems.map((item, idx) => (
+            {allNavItems.map((item, idx) => (
               <Link
                 key={idx}
                 href={item.link}
@@ -164,7 +233,7 @@ export default function Navbar() {
               <div className="flex items-center space-x-2">
                 <NavbarButton
                   href="/login"
-                  variant="secondary"
+                  variant="primary"
                   className="text-sm flex items-center"
                 >
                   <LogIn className="w-4 h-4 mr-1" />
@@ -225,7 +294,7 @@ export default function Navbar() {
           <MobileNavMenu isOpen={isOpen}>
             {/* Mobile Navigation Links */}
             <div className="flex flex-col space-y-4 w-full">
-              {navItems.map((item, idx) => (
+              {allNavItems.map((item, idx) => (
                 <Link
                   key={idx}
                   href={item.link}
@@ -257,7 +326,7 @@ export default function Navbar() {
                   <NavbarButton
                     href="/login"
                     onClick={() => setIsOpen(false)}
-                    variant="secondary"
+                    variant="primary"
                     className="w-full text-sm flex items-center justify-center"
                   >
                     <LogIn className="w-4 h-4 mr-1" />
