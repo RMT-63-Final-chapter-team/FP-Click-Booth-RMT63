@@ -455,15 +455,10 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-cream-50 to-cream-100">
       {/* Header */}
-      <div className="bg-white shadow-lg border-b border-cream-200">
+      <div className="bg-white shadow-lg border-b border-cream-200 mt-13">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
-              <img
-                src="/clickBooth.png"
-                alt="Click Booth"
-                className="h-10 w-auto"
-              />
               <div>
                 <h1 className="text-2xl font-bold text-charcoal-900">
                   Admin Dashboard
