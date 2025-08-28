@@ -235,7 +235,7 @@ export default function PaymentPage() {
           <div className="absolute bottom-0 left-1/3 w-24 h-24 bg-white rounded-full translate-y-12" />
         </div>
 
-        <div className="container py-16 relative z-10">
+        <div className="container py-16 relative z-10 ">
           <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}

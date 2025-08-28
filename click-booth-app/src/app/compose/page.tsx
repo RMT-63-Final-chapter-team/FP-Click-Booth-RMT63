@@ -1387,30 +1387,7 @@ export default function ComposePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100">
       {/* Header */}
-      <div className="bg-white border-b border-slate-200 shadow-sm">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-red-600 rounded-xl flex items-center justify-center shadow-lg">
-                <Palette className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-                  Photo Editor
-                </h1>
-                <p className="text-sm text-slate-600">Customize your photos</p>
-              </div>
-            </div>
-            <button
-              onClick={() => router.push("/booth")}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 rounded-xl font-medium text-sm transition-all duration-200 border border-slate-200 hover:border-slate-300"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Back to Booth
-            </button>
-          </div>
-        </div>
-      </div>
+      <div className="bg-white border-b border-slate-200 shadow-sm p-8"></div>
 
       {/* Main Content */}
       <div className="container mx-auto px-6 py-8 max-w-7xl">

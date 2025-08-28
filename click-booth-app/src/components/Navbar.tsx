@@ -102,18 +102,18 @@ export default function Navbar() {
           {/* Logo */}
           <Link
             href="/"
-            className="relative z-20 flex items-center space-x-2 px-2 py-1 text-sm font-normal text-black"
+            className="relative z-20 flex items-center space-x-1 px-2 py-1 text-sm font-normal text-black"
           >
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden">
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden">
               <Image
                 src="/clickBooth.png"
                 alt="ClickBooth Logo"
-                width={32}
-                height={32}
+                width={50}
+                height={50}
                 className="object-contain"
               />
             </div>
-            <div className="text-xs text-slate-800 px-2 py-1 font-medium">
+            <div className="text-base text-slate-800 px-2 py-1 font-bold">
               <span className="font-bold text-slate-800">
                 Click<span className="text-red-500">Booth</span>
               </span>
