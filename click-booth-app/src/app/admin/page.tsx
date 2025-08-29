@@ -35,6 +35,16 @@ export default function AdminPage() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
   const [currentDate, setCurrentDate] = useState("");
+  const [message, setMessage] = useState("");
+
+  // Field validation states
+  const [fieldErrors, setFieldErrors] = useState({
+    fullName: "",
+    username: "",
+    email: "",
+    phoneNumber: "",
+    password: "",
+  });
 
   // Add Admin Modal states
   const [showAddAdminModal, setShowAddAdminModal] = useState(false);
@@ -47,6 +57,94 @@ export default function AdminPage() {
   useEffect(() => {
     setCurrentDate(new Date().toLocaleDateString());
   }, []);
+
+  // Real-time field validation functions
+  const validateField = (fieldName: string, value: string) => {
+    let error = "";
+
+    switch (fieldName) {
+      case "fullName":
+        if (!value.trim()) {
+          error = "Full name is required";
+        } else if (value.trim().length < 3) {
+          error = "Must be at least 3 characters";
+        } else if (!/^[a-zA-Z\s]+$/.test(value.trim())) {
+          error = "Only letters and spaces allowed";
+        }
+        break;
+
+      case "username":
+        if (!value.trim()) {
+          error = "Username is required";
+        } else if (value.trim().length < 3) {
+          error = "Must be at least 3 characters";
+        } else if (!/^[a-zA-Z0-9_]+$/.test(value.trim())) {
+          error = "Only letters, numbers, and underscores allowed";
+        }
+        break;
+
+      case "email":
+        if (!value.trim()) {
+          error = "Email is required";
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())) {
+          error = "Please enter a valid email address";
+        }
+        break;
+
+      case "phoneNumber":
+        if (!value.trim()) {
+          error = "Phone number is required";
+        } else if (value.trim().length < 7) {
+          error = "Must be at least 7 characters";
+        } else if (!/^[\d\+\-\(\)\s]+$/.test(value.trim())) {
+          error = "Please enter a valid phone number";
+        }
+        break;
+
+      case "password":
+        if (!value) {
+          error = "Password is required";
+        } else if (value.length < 8) {
+          error = "Must be at least 8 characters";
+        } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(value)) {
+          error = "Must contain uppercase, lowercase, and number";
+        }
+        break;
+    }
+
+    setFieldErrors((prev) => ({
+      ...prev,
+      [fieldName]: error,
+    }));
+
+    return error === "";
+  };
+
+  // Enhanced input handlers with real-time validation
+  const handleFullNameChange = (value: string) => {
+    setFullName(value);
+    validateField("fullName", value);
+  };
+
+  const handleUsernameChange = (value: string) => {
+    setUsername(value);
+    validateField("username", value);
+  };
+
+  const handleEmailChange = (value: string) => {
+    setEmail(value);
+    validateField("email", value);
+  };
+
+  const handlePhoneNumberChange = (value: string) => {
+    setPhoneNumber(value);
+    validateField("phoneNumber", value);
+  };
+
+  const handlePasswordChange = (value: string) => {
+    setPassword(value);
+    validateField("password", value);
+  };
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -382,19 +480,104 @@ export default function AdminPage() {
       setUsername("");
       setPhoneNumber("");
       setPassword("");
+      setMessage("");
+      setFieldErrors({
+        fullName: "",
+        username: "",
+        email: "",
+        phoneNumber: "",
+        password: "",
+      });
       setIsAddAdminModalClosing(false);
       setIsAddAdminModalOpening(false);
     }, 300);
   };
 
+  // Enhanced form validation with better error messages
+  const validateAdminForm = () => {
+    // Clear previous messages
+    setMessage("");
+
+    // Full Name validation
+    if (!fullName.trim()) {
+      setMessage("Full name is required");
+      return false;
+    }
+    if (fullName.trim().length < 3) {
+      setMessage("Full name must be at least 3 characters long");
+      return false;
+    }
+    if (!/^[a-zA-Z\s]+$/.test(fullName.trim())) {
+      setMessage("Full name should only contain letters and spaces");
+      return false;
+    }
+
+    // Username validation
+    if (!username.trim()) {
+      setMessage("Username is required");
+      return false;
+    }
+    if (username.trim().length < 3) {
+      setMessage("Username must be at least 3 characters long");
+      return false;
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(username.trim())) {
+      setMessage("Username can only contain letters, numbers, and underscores");
+      return false;
+    }
+
+    // Email validation
+    if (!email.trim()) {
+      setMessage("Email address is required");
+      return false;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      setMessage("Please enter a valid email address");
+      return false;
+    }
+
+    // Phone number validation
+    if (!phoneNumber.trim()) {
+      setMessage("Phone number is required");
+      return false;
+    }
+    if (phoneNumber.trim().length < 7) {
+      setMessage("Phone number must be at least 7 characters long");
+      return false;
+    }
+    if (!/^[\d\+\-\(\)\s]+$/.test(phoneNumber.trim())) {
+      setMessage("Please enter a valid phone number");
+      return false;
+    }
+
+    // Password validation
+    if (!password) {
+      setMessage("Password is required");
+      return false;
+    }
+    if (password.length < 8) {
+      setMessage("Password must be at least 8 characters long");
+      return false;
+    }
+    if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) {
+      setMessage(
+        "Password must contain at least one uppercase letter, one lowercase letter, and one number"
+      );
+      return false;
+    }
+
+    return true;
+  };
+
   const handleAddAdmin = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    // Validate all fields are filled
-    if (!fullName || !email || !username || !phoneNumber || !password) {
+    // Use enhanced validation
+    if (!validateAdminForm()) {
       Swal.fire({
         title: "Validation Error",
-        text: "Please fill all fields",
+        text: message,
         icon: "warning",
         confirmButtonColor: "#D85C3A",
       });
@@ -402,22 +585,23 @@ export default function AdminPage() {
     }
 
     setLoading(true);
+    setMessage("");
+
     try {
       console.log("Adding admin with data:", {
-        username,
-        phoneNumber,
-        fullName,
-        email,
-        password,
+        username: username.trim(),
+        phoneNumber: phoneNumber.trim(),
+        fullName: fullName.trim(),
+        email: email.trim(),
       });
 
       const response = await fetch("/api/admin/addadmin", {
         method: "POST",
         body: JSON.stringify({
-          username,
-          phoneNumber,
-          fullName,
-          email,
+          username: username.trim(),
+          phoneNumber: phoneNumber.trim(),
+          fullName: fullName.trim(),
+          email: email.trim(),
           password,
         }),
         headers: {
@@ -425,35 +609,58 @@ export default function AdminPage() {
         },
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to add admin");
+        // Handle specific error messages from backend
+        let errorMessage = "Failed to add admin";
+
+        if (data.message) {
+          if (data.message.includes("Email already exists")) {
+            errorMessage =
+              "This email is already registered. Please use a different email.";
+          } else if (data.message.includes("Username already exists")) {
+            errorMessage =
+              "This username is already taken. Please choose a different username.";
+          } else if (data.message.includes("Phone number already exists")) {
+            errorMessage =
+              "This phone number is already registered. Please use a different phone number.";
+          } else {
+            errorMessage = data.message;
+          }
+        }
+
+        setMessage(errorMessage);
+        throw new Error(errorMessage);
       }
 
-      const data = await response.json();
-      console.log("Admin added successfully:", data);
+      setMessage("Admin account created successfully!");
 
       // Show success message
       Swal.fire({
         title: "Success!",
-        text: "Admin has been added successfully!",
+        text: "Admin account has been created successfully!",
         icon: "success",
-        confirmButtonColor: "#D85C3A",
+        confirmButtonColor: "#10B981",
       });
 
       // Close modal and reset form
       closeAddAdminModal();
     } catch (error) {
       console.error("Error adding admin:", error);
-      Swal.fire({
-        title: "Error!",
-        text:
-          error instanceof Error
-            ? error.message
-            : "Failed to add admin. Please try again.",
-        icon: "error",
-        confirmButtonColor: "#D85C3A",
-      });
+
+      // Don't show SweetAlert if we already set a specific message
+      if (!message) {
+        Swal.fire({
+          title: "Error!",
+          text:
+            error instanceof Error
+              ? error.message
+              : "Failed to add admin. Please try again.",
+          icon: "error",
+          confirmButtonColor: "#EF4444",
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -506,8 +713,8 @@ export default function AdminPage() {
           </div>
         </div>
         {/* Stats Cards */}
-        <div className="mb-10">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="mb-10 ">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-6 shadow-xl border border-white/20 hover:shadow-2xl transition-all duration-300 hover:scale-105">
               <div className="flex items-center justify-between">
                 <div>
@@ -554,32 +761,6 @@ export default function AdminPage() {
                       strokeLinejoin="round"
                       strokeWidth={2}
                       d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-6 shadow-xl border border-white/20 hover:shadow-2xl transition-all duration-300 hover:scale-105">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-2xl font-bold text-slate-800">
-                    {Math.floor(aiList.length * 0.8)}
-                  </h3>
-                  <p className="text-slate-600 font-medium">Inactive Styles</p>
-                </div>
-                <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl flex items-center justify-center shadow-lg">
-                  <svg
-                    className="w-6 h-6 text-white"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
                     />
                   </svg>
                 </div>
@@ -1040,12 +1221,34 @@ export default function AdminPage() {
                     <input
                       type="text"
                       placeholder="Enter admin's full name"
-                      className="w-full px-4 py-3 border border-cream-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white text-charcoal-900 placeholder-charcoal-400"
+                      className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 transition-all bg-white text-charcoal-900 placeholder-charcoal-400 ${
+                        fieldErrors.fullName
+                          ? "border-red-500 focus:border-red-500"
+                          : fullName && !fieldErrors.fullName
+                          ? "border-green-500 focus:border-green-500"
+                          : "border-cream-300 focus:border-blue-500"
+                      }`}
                       value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
+                      onChange={(e) => handleFullNameChange(e.target.value)}
                       disabled={loading}
                       required
                     />
+                    {fieldErrors.fullName && (
+                      <p className="text-red-500 text-xs mt-1 flex items-center">
+                        <svg
+                          className="w-4 h-4 mr-1"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                        {fieldErrors.fullName}
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -1055,12 +1258,34 @@ export default function AdminPage() {
                     <input
                       type="text"
                       placeholder="Enter username"
-                      className="w-full px-4 py-3 border border-cream-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white text-charcoal-900 placeholder-charcoal-400"
+                      className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 transition-all bg-white text-charcoal-900 placeholder-charcoal-400 ${
+                        fieldErrors.username
+                          ? "border-red-500 focus:border-red-500"
+                          : username && !fieldErrors.username
+                          ? "border-green-500 focus:border-green-500"
+                          : "border-cream-300 focus:border-blue-500"
+                      }`}
                       value={username}
-                      onChange={(e) => setUsername(e.target.value)}
+                      onChange={(e) => handleUsernameChange(e.target.value)}
                       disabled={loading}
                       required
                     />
+                    {fieldErrors.username && (
+                      <p className="text-red-500 text-xs mt-1 flex items-center">
+                        <svg
+                          className="w-4 h-4 mr-1"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                        {fieldErrors.username}
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -1070,12 +1295,34 @@ export default function AdminPage() {
                     <input
                       type="email"
                       placeholder="Enter email address"
-                      className="w-full px-4 py-3 border border-cream-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white text-charcoal-900 placeholder-charcoal-400"
+                      className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 transition-all bg-white text-charcoal-900 placeholder-charcoal-400 ${
+                        fieldErrors.email
+                          ? "border-red-500 focus:border-red-500"
+                          : email && !fieldErrors.email
+                          ? "border-green-500 focus:border-green-500"
+                          : "border-cream-300 focus:border-blue-500"
+                      }`}
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      onChange={(e) => handleEmailChange(e.target.value)}
                       disabled={loading}
                       required
                     />
+                    {fieldErrors.email && (
+                      <p className="text-red-500 text-xs mt-1 flex items-center">
+                        <svg
+                          className="w-4 h-4 mr-1"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                        {fieldErrors.email}
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -1085,12 +1332,34 @@ export default function AdminPage() {
                     <input
                       type="tel"
                       placeholder="Enter phone number"
-                      className="w-full px-4 py-3 border border-cream-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white text-charcoal-900 placeholder-charcoal-400"
+                      className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 transition-all bg-white text-charcoal-900 placeholder-charcoal-400 ${
+                        fieldErrors.phoneNumber
+                          ? "border-red-500 focus:border-red-500"
+                          : phoneNumber && !fieldErrors.phoneNumber
+                          ? "border-green-500 focus:border-green-500"
+                          : "border-cream-300 focus:border-blue-500"
+                      }`}
                       value={phoneNumber}
-                      onChange={(e) => setPhoneNumber(e.target.value)}
+                      onChange={(e) => handlePhoneNumberChange(e.target.value)}
                       disabled={loading}
                       required
                     />
+                    {fieldErrors.phoneNumber && (
+                      <p className="text-red-500 text-xs mt-1 flex items-center">
+                        <svg
+                          className="w-4 h-4 mr-1"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                        {fieldErrors.phoneNumber}
+                      </p>
+                    )}
                   </div>
 
                   <div className="md:col-span-2">
@@ -1100,14 +1369,86 @@ export default function AdminPage() {
                     <input
                       type="password"
                       placeholder="Enter secure password (min. 8 characters)"
-                      className="w-full px-4 py-3 border border-cream-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white text-charcoal-900 placeholder-charcoal-400"
+                      className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 transition-all bg-white text-charcoal-900 placeholder-charcoal-400 ${
+                        fieldErrors.password
+                          ? "border-red-500 focus:border-red-500"
+                          : password && !fieldErrors.password
+                          ? "border-green-500 focus:border-green-500"
+                          : "border-cream-300 focus:border-blue-500"
+                      }`}
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      onChange={(e) => handlePasswordChange(e.target.value)}
                       disabled={loading}
                       required
                       minLength={8}
                     />
+                    {fieldErrors.password && (
+                      <p className="text-red-500 text-xs mt-1 flex items-center">
+                        <svg
+                          className="w-4 h-4 mr-1"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                        {fieldErrors.password}
+                      </p>
+                    )}
+                    {password && !fieldErrors.password && (
+                      <div className="mt-2 flex items-center">
+                        <div className="flex space-x-1">
+                          <div
+                            className={`h-1 w-6 rounded ${
+                              password.length >= 8
+                                ? "bg-green-500"
+                                : "bg-gray-200"
+                            }`}
+                          ></div>
+                          <div
+                            className={`h-1 w-6 rounded ${
+                              /(?=.*[a-z])/.test(password)
+                                ? "bg-green-500"
+                                : "bg-gray-200"
+                            }`}
+                          ></div>
+                          <div
+                            className={`h-1 w-6 rounded ${
+                              /(?=.*[A-Z])/.test(password)
+                                ? "bg-green-500"
+                                : "bg-gray-200"
+                            }`}
+                          ></div>
+                          <div
+                            className={`h-1 w-6 rounded ${
+                              /(?=.*\d)/.test(password)
+                                ? "bg-green-500"
+                                : "bg-gray-200"
+                            }`}
+                          ></div>
+                        </div>
+                        <span className="text-xs text-green-600 ml-2">
+                          Strong password
+                        </span>
+                      </div>
+                    )}
                   </div>
+                  {/* Message Display */}
+                  {message && (
+                    <div
+                      className={`mt-6 p-4 rounded-lg border ${
+                        message.includes("successful") ||
+                        message.includes("berhasil")
+                          ? "bg-green-50 border-green-200 text-green-800"
+                          : "bg-red-50 border-red-200 text-red-800"
+                      }`}
+                    >
+                      {message}
+                    </div>
+                  )}
                 </div>
 
                 {/* Modal Footer */}
@@ -1128,7 +1469,8 @@ export default function AdminPage() {
                       !email ||
                       !username ||
                       !phoneNumber ||
-                      !password
+                      !password ||
+                      Object.values(fieldErrors).some((error) => error !== "")
                     }
                     className={`px-8 py-3 rounded-lg font-semibold transition-all transform ${
                       loading ||
@@ -1136,8 +1478,9 @@ export default function AdminPage() {
                       !email ||
                       !username ||
                       !phoneNumber ||
-                      !password
-                        ? "bg-charcoal-300 text-charcoal-500 cursor-not-allowed"
+                      !password ||
+                      Object.values(fieldErrors).some((error) => error !== "")
+                        ? "bg-gray-400 text-gray-600 cursor-not-allowed"
                         : "bg-blue-600 hover:bg-blue-700 text-white hover:shadow-lg hover:scale-105 active:scale-95"
                     }`}
                   >
