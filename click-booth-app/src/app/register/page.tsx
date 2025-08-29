@@ -37,24 +37,24 @@ export default function RegisterPage() {
   };
 
   const validateForm = () => {
-    if (!formData.fullName.trim()) {
-      setMessage("Full name is required");
+    if (formData.fullName.length < 3) {
+      setMessage("Full name must be at least 3 characters");
       return false;
     }
-    if (!formData.username.trim()) {
-      setMessage("Username is required");
+    if (formData.username.length < 3) {
+      setMessage("Username must be at least 3 characters");
       return false;
     }
     if (!formData.email.trim() || !/\S+@\S+\.\S+/.test(formData.email)) {
       setMessage("Valid email is required");
       return false;
     }
-    if (!formData.phoneNumber.trim()) {
-      setMessage("Phone number is required");
+    if (formData.phoneNumber.length < 7) {
+      setMessage("Phone number must be at least 7 characters");
       return false;
     }
-    if (formData.password.length < 6) {
-      setMessage("Password must be at least 6 characters");
+    if (formData.password.length < 8) {
+      setMessage("Password must be at least 8 characters");
       return false;
     }
     if (formData.password !== formData.confirmPassword) {
