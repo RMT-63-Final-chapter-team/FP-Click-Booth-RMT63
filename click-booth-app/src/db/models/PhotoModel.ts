@@ -4,8 +4,8 @@ import { ObjectId as MongoObjectId } from "mongodb";
 
 function mapDocToPhoto(doc: PhotoDoc): Photo {
   return {
-    _id: doc._id?.toString(),
-    userId: doc.userId ? doc.userId.toString() : null,
+    _id: doc._id,
+    userId: doc.userId || null,
     url: doc.url,
     publicId: doc.publicId ?? undefined,
     imageUrl: doc.imageUrl ?? doc.url,
@@ -19,7 +19,7 @@ function mapDocToPhoto(doc: PhotoDoc): Photo {
     enhancedUrl: doc.enhancedUrl,
     aiEnhanced: doc.aiEnhanced ?? false,
     createdAt: doc.createdAt,
-    updatedAt: doc.updatedAt
+    updatedAt: doc.updatedAt,
   };
 }
 
@@ -36,17 +36,25 @@ export class PhotoModel {
       // unique index on publicId (only for documents that have publicId)
       await this.collection().createIndex(
         { publicId: 1 },
-        { unique: true, partialFilterExpression: { publicId: { $exists: true } } }
+        {
+          unique: true,
+          partialFilterExpression: { publicId: { $exists: true } },
+        }
       );
     } catch (e) {
       // non-fatal; log for debug
-      console.error("PhotoModel.initIndexes error:", (e as any)?.message ?? e);
+      console.error(
+        "PhotoModel.initIndexes error:",
+        (e as Error)?.message ?? e
+      );
     }
   }
   static async createPhoto(input: NewPhotoInput): Promise<Photo> {
     // If upload provided a publicId, return existing doc first to avoid duplicates
     if (input.publicId) {
-      const existing = await this.collection().findOne({ publicId: input.publicId });
+      const existing = await this.collection().findOne({
+        publicId: input.publicId,
+      });
       if (existing) return mapDocToPhoto(existing);
     }
 
@@ -66,18 +74,21 @@ export class PhotoModel {
       enhancedUrl: input.enhancedUrl ?? input.url,
       aiEnhanced: input.aiEnhanced ?? false,
       createdAt: now,
-      updatedAt: now
+      updatedAt: now,
     };
 
     try {
       const result = await this.collection().insertOne(doc);
-      if (!result.acknowledged) throw { message: "Failed to save photo", status: 500 };
+      if (!result.acknowledged)
+        throw { message: "Failed to save photo", status: 500 };
       const savedDoc: PhotoDoc = { ...doc, _id: result.insertedId };
       return mapDocToPhoto(savedDoc);
-    } catch (err: any) {
+    } catch (err) {
       // handle duplicate key race (publicId unique index)
-      if (err?.code === 11000 && input.publicId) {
-        const existing = await this.collection().findOne({ publicId: input.publicId });
+      if ((err as { code?: number })?.code === 11000 && input.publicId) {
+        const existing = await this.collection().findOne({
+          publicId: input.publicId,
+        });
         if (existing) return mapDocToPhoto(existing);
       }
       throw err;
@@ -97,7 +108,10 @@ export class PhotoModel {
   static async findByUserId(userId: string): Promise<Photo[]> {
     try {
       const _u = new MongoObjectId(userId);
-      const docs = await this.collection().find({ userId: _u }).sort({ createdAt: -1 }).toArray();
+      const docs = await this.collection()
+        .find({ userId: _u })
+        .sort({ createdAt: -1 })
+        .toArray();
       return docs.map(mapDocToPhoto);
     } catch {
       return [];
@@ -110,7 +124,7 @@ export class PhotoModel {
     limit?: number;
     skip?: number;
   }): Promise<Photo[]> {
-    const filter: any = {};
+    const filter: Partial<PhotoDoc> = {};
     if (options?.mine && options.userId) {
       try {
         filter.userId = new MongoObjectId(options.userId);
@@ -159,15 +173,22 @@ export class PhotoModel {
       // build typed update object
       const updateFields: Partial<PhotoDoc> = { updatedAt: new Date() };
       if (payload.frame !== undefined) updateFields.frame = payload.frame;
-      if (payload.stickers !== undefined) updateFields.stickers = payload.stickers;
-      if (payload.watermark !== undefined) updateFields.watermark = payload.watermark;
-      if (payload.enhancedUrl !== undefined) updateFields.enhancedUrl = payload.enhancedUrl;
-      if (payload.aiEnhanced !== undefined) updateFields.aiEnhanced = payload.aiEnhanced;
+      if (payload.stickers !== undefined)
+        updateFields.stickers = payload.stickers;
+      if (payload.watermark !== undefined)
+        updateFields.watermark = payload.watermark;
+      if (payload.enhancedUrl !== undefined)
+        updateFields.enhancedUrl = payload.enhancedUrl;
+      if (payload.aiEnhanced !== undefined)
+        updateFields.aiEnhanced = payload.aiEnhanced;
       if (payload.filter !== undefined) updateFields.filter = payload.filter;
       if (payload.shots !== undefined) updateFields.shots = payload.shots;
       if (payload.layout !== undefined) updateFields.layout = payload.layout;
       // perform update then fetch the updated document to avoid ambiguous driver return types
-      const res = await this.collection().updateOne({ _id }, { $set: updateFields });
+      const res = await this.collection().updateOne(
+        { _id },
+        { $set: updateFields }
+      );
       if (res.matchedCount === 0) return null;
 
       const doc = await this.collection().findOne({ _id });

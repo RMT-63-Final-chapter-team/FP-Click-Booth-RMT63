@@ -33,6 +33,7 @@ export type UploadBody = {
 };
 
 export interface UserType {
+  _id?: ObjectId;
   fullName: string;
   username: string;
   email: string;

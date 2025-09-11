@@ -6,6 +6,6 @@ export async function GET(request: Request) {
     const data = await AdminModel.getAll();
     return Response.json({ data }, { status: 200 });
   } catch (error) {
-    errorHandler(error);
+    return errorHandler(error);
   }
 }

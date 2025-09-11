@@ -1,14 +1,14 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { PaymentModel } from "@/db/models/PaymentModel";
 import { coreClient } from "@/helpers/midtrans";
 import { UserModel } from "@/db/models/UserModel";
 
 export async function GET(
-  req: Request,
-  { params }: { params: { orderId: string } }
-) {
+  req: NextRequest,
+  context: { params: Promise<{ orderId: string }> }
+): Promise<NextResponse> {
   try {
-    const { orderId } = params;
+    const { orderId } = await context.params;
     if (!orderId) {
       return NextResponse.json({ error: "Missing orderId" }, { status: 400 });
     }

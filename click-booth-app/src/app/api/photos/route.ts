@@ -14,12 +14,16 @@ const CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME;
 const CLOUD_API_KEY = process.env.CLOUDINARY_API_KEY;
 const CLOUD_API_SECRET = process.env.CLOUDINARY_API_SECRET;
 
-const cloudinaryConfigured = !!(CLOUD_NAME && CLOUD_API_KEY && CLOUD_API_SECRET);
+const cloudinaryConfigured = !!(
+  CLOUD_NAME &&
+  CLOUD_API_KEY &&
+  CLOUD_API_SECRET
+);
 if (cloudinaryConfigured) {
   cloudinary.config({
     cloud_name: CLOUD_NAME,
     api_key: CLOUD_API_KEY,
-    api_secret: CLOUD_API_SECRET
+    api_secret: CLOUD_API_SECRET,
   });
 }
 
@@ -41,11 +45,14 @@ async function uploadBufferToCloudinary(
   options: Record<string, unknown> = {}
 ): Promise<UploadApiResponse> {
   return new Promise<UploadApiResponse>((resolve, reject) => {
-    const uploadStream = cloudinary.uploader.upload_stream(options as any, (error, result) => {
-      if (error) return reject(error);
-      if (!result) return reject(new Error("Empty Cloudinary upload result"));
-      resolve(result as UploadApiResponse);
-    });
+    const uploadStream = cloudinary.uploader.upload_stream(
+      options,
+      (error, result) => {
+        if (error) return reject(error);
+        if (!result) return reject(new Error("Empty Cloudinary upload result"));
+        resolve(result as UploadApiResponse);
+      }
+    );
     streamifier.createReadStream(buffer).pipe(uploadStream);
   });
 }
@@ -60,7 +67,7 @@ async function findExistingPhoto(userId: string): Promise<Photo | null> {
       userId: userIdObj,
       url: { $ne: "" }, // Only photos with actual URL (uploaded to cloud)
       // Check for photos uploaded in the last 10 minutes (extended time)
-      createdAt: { $gte: new Date(Date.now() - 10 * 60 * 1000) }
+      createdAt: { $gte: new Date(Date.now() - 10 * 60 * 1000) },
     });
 
     console.log("Found existing photo:", existingPhoto ? "Yes" : "No");
@@ -88,7 +95,10 @@ export async function POST(req: Request) {
     const body = (await req.json()) as UploadBody;
 
     if (!body?.imageData)
-      throw { message: "imageData (base64 or data URI) is required", status: 400 };
+      throw {
+        message: "imageData (base64 or data URI) is required",
+        status: 400,
+      };
 
     const isGuest = !userId;
     if (isGuest && body.downloadOnly) {
@@ -105,7 +115,9 @@ export async function POST(req: Request) {
 
     // Check if we should skip Cloudinary upload (for booth photos)
     if (body.skipCloudinaryUpload) {
-      console.log("Skipping Cloudinary upload for booth photo, saving to DB only");
+      console.log(
+        "Skipping Cloudinary upload for booth photo, saving to DB only"
+      );
 
       // Save directly to database without Cloudinary upload
       const created = await PhotoModel.createPhoto({
@@ -120,14 +132,14 @@ export async function POST(req: Request) {
         layout: body.layout ?? undefined,
         images: body.images ?? [],
         enhancedUrl: "",
-        aiEnhanced: false
+        aiEnhanced: false,
       });
 
       return NextResponse.json({
         message: "Photo saved to database successfully",
         photo: created,
         uploaded: false,
-        isNewUpload: false
+        isNewUpload: false,
       });
     }
 
@@ -141,17 +153,25 @@ export async function POST(req: Request) {
     if (base64Payload.length === 0)
       throw { message: "Invalid image data (empty payload)", status: 400 };
     if (base64Payload.length % 4 !== 0)
-      base64Payload = base64Payload.padEnd(Math.ceil(base64Payload.length / 4) * 4, "=");
+      base64Payload = base64Payload.padEnd(
+        Math.ceil(base64Payload.length / 4) * 4,
+        "="
+      );
 
     const buffer = Buffer.from(base64Payload, "base64");
     if (buffer.length < 8)
-      throw { message: "Invalid image data (payload too short after decode)", status: 400 };
+      throw {
+        message: "Invalid image data (payload too short after decode)",
+        status: 400,
+      };
 
     const ft = await fileTypeFromBuffer(buffer);
-    if (!ft || !ft.mime?.startsWith("image/")) throw { message: "Invalid image file", status: 400 };
+    if (!ft || !ft.mime?.startsWith("image/"))
+      throw { message: "Invalid image file", status: 400 };
 
     const MAX_BYTES = 5 * 1024 * 1024;
-    if (buffer.length > MAX_BYTES) throw { message: "Image too large", status: 413 };
+    if (buffer.length > MAX_BYTES)
+      throw { message: "Image too large", status: 413 };
 
     let url: string;
     let publicId: string;
@@ -176,11 +196,14 @@ export async function POST(req: Request) {
           folder: "click-booth",
           resource_type: "image",
           use_filename: true,
-          unique_filename: true
+          unique_filename: true,
         });
 
         if (!uploadResult?.secure_url)
-          throw { message: "Cloudinary did not return secure_url", status: 502 };
+          throw {
+            message: "Cloudinary did not return secure_url",
+            status: 502,
+          };
 
         url = uploadResult.secure_url;
         publicId = uploadResult.public_id;
@@ -199,7 +222,7 @@ export async function POST(req: Request) {
           layout: body.layout ?? undefined,
           images: body.images ?? [],
           enhancedUrl: url,
-          aiEnhanced: false
+          aiEnhanced: false,
         });
       }
     } else {
@@ -209,7 +232,7 @@ export async function POST(req: Request) {
         folder: "click-booth",
         resource_type: "image",
         use_filename: true,
-        unique_filename: true
+        unique_filename: true,
       });
 
       if (!uploadResult?.secure_url)
@@ -232,14 +255,14 @@ export async function POST(req: Request) {
         layout: body.layout ?? undefined,
         images: body.images ?? [],
         enhancedUrl: url,
-        aiEnhanced: false
+        aiEnhanced: false,
       });
       // Untuk save to cloud, cek dulu apakah sudah ada foto recent
       console.log("Processing cloud save request");
     }
 
     //share ke WhatsApp via fonnte
-    let waResult: any = null;
+    let waResult = null;
     if (body.sendToWhatsapp) {
       try {
         let phoneNumber = body.phoneNumber;
@@ -247,7 +270,7 @@ export async function POST(req: Request) {
         if (!phoneNumber && userId) {
           try {
             const col = UserModel.collection();
-            let user: any = null;
+            let user = null;
             // try ObjectId lookup first
             try {
               user = await col.findOne({ _id: new ObjectId(userId) });
@@ -267,11 +290,15 @@ export async function POST(req: Request) {
           );
         } else {
           waResult = { error: "No phone number found for user" };
-          console.warn("[photos.route] sendToWhatsapp requested but no phone available");
+          console.warn(
+            "[photos.route] sendToWhatsapp requested but no phone available"
+          );
         }
       } catch (waErr) {
         console.error("WA send error:", waErr);
-        waResult = { error: waErr instanceof Error ? waErr.message : String(waErr) };
+        waResult = {
+          error: waErr instanceof Error ? waErr.message : String(waErr),
+        };
       }
     }
 
@@ -288,7 +315,7 @@ export async function POST(req: Request) {
         message: responseMessage,
         photo: created,
         waResult: body.sendToWhatsapp ? waResult : undefined,
-        isNewUpload
+        isNewUpload,
       },
       { status: isNewUpload ? 201 : 200 }
     );
@@ -301,7 +328,10 @@ export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const mine = url.searchParams.get("mine") === "true";
-    const limit = Math.min(Math.max(Number(url.searchParams.get("limit") ?? 50), 1), 200);
+    const limit = Math.min(
+      Math.max(Number(url.searchParams.get("limit") ?? 50), 1),
+      200
+    );
     const skip = Math.max(Number(url.searchParams.get("skip") ?? 0), 0);
     const userId = req.headers.get("x-user-id") ?? "";
 
@@ -312,7 +342,12 @@ export async function GET(req: Request) {
       );
     }
 
-    const photos = await PhotoModel.list({ userId: userId || undefined, mine, limit, skip });
+    const photos = await PhotoModel.list({
+      userId: userId || undefined,
+      mine,
+      limit,
+      skip,
+    });
 
     const enhanced = photos.map((p) => {
       const thumbUrl =
@@ -321,13 +356,13 @@ export async function GET(req: Request) {
               width: 800,
               crop: "scale",
               quality: "auto",
-              fetch_format: "auto"
+              fetch_format: "auto",
             })
           : p.url;
       return {
         ...p,
         thumbUrl,
-        isOwner: Boolean(userId && p.userId && p.userId.toString() === userId)
+        isOwner: Boolean(userId && p.userId && p.userId.toString() === userId),
       };
     });
 

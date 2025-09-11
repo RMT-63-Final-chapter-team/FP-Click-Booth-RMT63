@@ -66,7 +66,7 @@ export default async function middleware(req: NextRequest) {
     }
 
     // ==== Verifikasi token (harus compatible Edge) ====
-    let payload: any;
+    let payload: { id?: string | number; role?: string };
     try {
       payload = await verifyWithJose(token);
     } catch (e) {
@@ -78,7 +78,7 @@ export default async function middleware(req: NextRequest) {
     const userId = payload?.id ? String(payload.id) : "";
     console.log("[middleware] userId:", userId);
 
-    const roles: string = payload?.role;
+    const roles = payload?.role;
     const isAdmin = roles === "admin";
 
     // ==== Guard khusus admin ====

@@ -3,6 +3,7 @@ import { comparePassword } from "@/helpers/bcrypt";
 import errorHandler from "@/helpers/errHandler";
 
 import { signToken } from "@/helpers/jwt";
+import { UserType } from "@/type";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -32,7 +33,10 @@ export async function POST(req: Request) {
     // generate token
 
     const token = signToken({
-      id: (user as any)._id?.toString() ?? (user as any).id ?? "",
+      id:
+        (user as UserType)._id?.toString() ??
+        (user as UserType)._id?.toString() ??
+        "",
       email: user.email,
       role: user.role,
     });
@@ -55,9 +59,12 @@ export async function POST(req: Request) {
         message: "Login successful",
         access_token: token,
         user: {
-          id: (user as any)._id?.toString() ?? (user as any).id ?? "",
+          id:
+            (user as UserType)._id?.toString() ??
+            (user as UserType)._id?.toString() ??
+            "",
           email: user.email,
-          phoneNumber: (user as any).phoneNumber ?? null,
+          phoneNumber: (user as UserType).phoneNumber ?? null,
         },
       },
       { status: 200 }
